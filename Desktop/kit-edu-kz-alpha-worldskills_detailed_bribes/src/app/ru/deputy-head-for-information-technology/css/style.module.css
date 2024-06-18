@@ -1,0 +1,351 @@
+
+
+/* TECHICAL CLASSES */
+
+.wrapper {
+    min-height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    background-color: #fff;
+}
+
+._container {
+    max-width: 1280px;
+    margin: 0 auto;
+}
+
+
+/* ============================ */
+
+/* FUTURE SECTION */
+
+.future__section {
+    background-repeat: no-repeat;
+    background-size: 296px 293px;
+    width: 100%;
+}
+
+
+/* ================================ */
+
+
+/* INFORMATION SECTION */
+
+
+.information {
+    margin-top: 25px;
+}
+
+
+.information li {
+    position: relative;
+    padding-left: 12px; /* Add space for custom marker */
+}
+
+.information li::before {
+    content: '';
+    width: 3px; /* Width of the custom disc */
+    height: 3px; /* Height of the custom disc */
+    background-color: black; /* Color of the custom disc */
+    border-radius: 50%; /* Make it a circle */
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+.information__container {
+    display: flex;
+    gap: 38px;
+    padding: 0px 35px;
+    align-items: center;
+}
+
+.information__img {
+    max-width: 266px;
+    max-height: 359px;
+    border-radius: 10px;
+}
+
+.information__suptitle {
+    color: #818181;
+    font-family: Montserrat;
+    font-size: 20px;
+    font-style: normal;
+    font-weight: 500;
+    line-height: normal;
+}
+
+.information__title {
+    color: #000;
+    font-family: Montserrat;
+    font-size: 26px;
+    font-style: normal;
+    font-weight: 600;
+    line-height: normal;
+    margin-bottom: 23px;
+}
+
+.detailed__birthdate {
+    margin-bottom: 9px;
+}
+
+.birthdate__title {
+    color: #000;
+    font-family: Montserrat;
+    font-size: 16px;
+    font-style: normal;
+    font-weight: 600;
+    line-height: normal;
+}
+
+.birthdate__year {
+    color: #231F20;
+    font-family: Montserrat;
+    font-size: 16px;
+    font-style: normal;
+    font-weight: 500;
+    line-height: normal;
+}
+
+.detailed__birthplace {
+    margin-bottom: 9px;
+}
+
+.birthplace__title {
+    color: #000;
+    font-family: Montserrat;
+    font-size: 16px;
+    font-style: normal;
+    font-weight: 600;
+    line-height: normal;
+}
+
+.birthplace__region {
+    color: #231F20;
+    font-family: Montserrat;
+    font-size: 16px;
+    font-style: normal;
+    font-weight: 500;
+    line-height: normal;
+}
+
+.detailed__academic__degree {
+    margin-bottom: 9px;
+}
+
+.degree__title {
+    color: #000;
+    font-family: Montserrat;
+    font-size: 16px;
+    font-style: normal;
+    font-weight: 600;
+    line-height: normal;
+}
+
+.degree__list__item {
+    color: #231F20;
+    font-family: Montserrat;
+    font-size: 16px;
+    font-style: normal;
+    font-weight: 500;
+    line-height: normal;
+}
+
+.detailed__qualification {
+    margin-bottom: 9px;
+}
+
+.qualification__title {
+    color: #000;
+    font-family: Montserrat;
+    font-size: 16px;
+    font-style: normal;
+    font-weight: 600;
+    line-height: normal;
+}
+
+.qualification__list__item {
+    color: #231F20;
+    font-family: Montserrat;
+    font-size: 16px;
+    font-style: normal;
+    font-weight: 500;
+    line-height: normal;
+}
+
+.major__title {
+    color: #000;
+    font-family: Montserrat;
+    font-size: 16px;
+    font-style: normal;
+    font-weight: 600;
+    line-height: normal;
+}
+
+.major__list__item {
+    color: #231F20;
+    font-family: Montserrat;
+    font-size: 16px;
+    font-style: normal;
+    font-weight: 500;
+    line-height: normal;
+}
+
+/* =============================== */
+
+
+/* HUGE TEXT SECTION */
+
+.huge__text {
+    margin-top: 26px;
+    margin-bottom: 56px;
+}
+
+.huge__text li {
+    position: relative;
+    padding-left: 12px; /* Add space for custom marker */
+}
+
+.huge__text li::before {
+    content: '';
+    width: 3px; /* Width of the custom disc */
+    height: 3px; /* Height of the custom disc */
+    background-color: black; /* Color of the custom disc */
+    border-radius: 50%; /* Make it a circle */
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+.huge__text__container {
+    padding: 0px 35px;
+}
+
+.huge__text__education__block {
+    margin-bottom: 9px;
+}
+
+.education__title {
+    color: #000;
+    font-family: Montserrat;
+    font-size: 16px;
+    font-style: normal;
+    font-weight: 600;
+    line-height: normal;
+    margin-bottom: 9px;
+}
+
+.education__lsit__item {
+    color: #231F20;
+    font-family: Montserrat;
+    font-size: 16px;
+    font-style: normal;
+    font-weight: 500;
+    line-height: normal;
+}
+
+.activity__title {
+    color: #000;
+    font-family: Montserrat;
+    font-size: 16px;
+    font-style: normal;
+    font-weight: 600;
+    line-height: normal;
+    margin-bottom: 9px;
+}
+
+.activity__list__item {
+    color: #231F20;
+    font-family: Montserrat;
+    font-size: 16px;
+    font-style: normal;
+    font-weight: 500;
+    line-height: normal;
+}
+
+/* ============================== */
+
+/* FOOTER SECTION */
+
+.footer {
+    background: #212121;
+    padding: 48px 0px;
+    margin-top: auto;
+}
+
+.footer__social__networks__block {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.social__networks__title__block {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+}
+
+.title__block__header {
+    color: #FFF;
+    font-family: Montserrat;
+    font-size: 24px;
+    font-style: normal;
+    font-weight: 600;
+    line-height: normal;
+}
+
+.social__networks__icons__block {
+    display: flex;
+    gap: 24px;
+}
+
+
+.overview__lists__block {
+    display: flex;
+    justify-content: space-between;
+    padding: 24px 0px;
+}
+
+.about__college {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.about__college__title {
+    color: #FFF;
+    font-family: Montserrat;
+    font-size: 16px;
+    font-style: normal;
+    font-weight: 600;
+    line-height: normal;
+}
+
+.lists__about__college {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.lists__about__college__item {
+    color: rgba(255, 255, 255, 0.70);
+    font-family: Montserrat;
+    font-size: 16px;
+    font-style: normal;
+    font-weight: 500;
+    line-height: normal;
+}
+
+.reserved__text {
+    color: rgba(255, 255, 255, 0.40);
+    font-family: Montserrat;
+    font-size: 16px;
+    font-style: normal;
+    font-weight: 500;
+    line-height: normal;
+}
+
+/* ============================== */

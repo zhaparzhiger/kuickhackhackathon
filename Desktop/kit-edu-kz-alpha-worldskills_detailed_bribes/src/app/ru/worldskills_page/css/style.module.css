@@ -1,0 +1,358 @@
+
+
+/* TECHICAL CLASSES */
+
+.wrapper {
+    min-height: 100%;
+    overflow: hidden;
+    background-color: #fff;
+}
+
+._container {
+    max-width: 1280px;
+    margin: 0 auto;
+}
+
+/* ============================ */
+
+/* FUTURE SECTION */
+
+.future__section {
+    background-color: #003764;
+    background-image: url('../assets/future__section/worldskills.png');
+    background-repeat: no-repeat;
+    background-size: 296px 293px;
+    width: 100%;
+    height: 100vh;
+}
+
+/* INFORMATION BLOCK */
+
+.information {
+    display: flex;
+    justify-content: center;
+    margin-top: 170px;
+    
+}
+
+.information__container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 24px;
+}
+
+.information__text__block__header {
+    color: #FFF;
+    font-family: Montserrat;
+    font-size: 64px;
+    font-style: normal;
+    font-weight: 600;
+    line-height: normal;
+}
+
+.information__links__block {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.information__first__link {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+}
+
+.information__first__link:hover .information__first__link__arrow {
+    transition: transform 0.2s ease-out;
+    transform: rotate(45deg);
+}
+
+.information__first__link__item {
+    color: #36BA6B;
+    text-align: center;
+    font-family: Montserrat;
+    font-size: 24px;
+    font-style: normal;
+    font-weight: 600;
+    line-height: normal;
+}
+
+.information__first__link__small__circle {
+    margin-left: 10px;
+}
+
+.information__second__link__item {
+    color: #EAA360;
+    text-align: center;
+    font-family: Montserrat;
+    font-size: 24px;
+    font-style: normal;
+    font-weight: 600;
+    line-height: normal;
+}
+
+.information__second__link {
+    display: flex;
+    align-items: center;
+}
+
+.information__second__link:hover .information__second__link__arrow {
+    transition: transform 0.2s ease-out;
+    transform: rotate(45deg);
+}
+
+/* ============================== */
+
+/* ============================== */
+
+
+/* CHAMPIONSHIP SECTION */
+
+
+.championship {
+    margin-top: 65px;
+}
+
+.championship__container {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.championship__header__block {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.championship__header {
+    color: #000;
+    font-family: Montserrat;
+    font-size: 48px;
+    font-style: normal;
+    font-weight: 700;
+    line-height: normal;
+}
+
+.championship__header__more__block {
+    display: flex;
+    align-items: center;
+}
+
+.championship__header__more__block:hover .more__block__arrow {
+    transition: transform 0.2s ease-out;
+    transform: rotate(45deg);
+}
+
+.more__block__link {
+    color: #EAA360;
+    font-family: Montserrat;
+    font-size: 24px;
+    font-style: normal;
+    font-weight: 600;
+    line-height: normal;
+}
+
+.more__block__arrow {
+    cursor: pointer;
+}
+
+.championship__long__text__block {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.long__text__block__paragraph {
+    color: #000;
+    font-family: Montserrat;
+    font-size: 24px;
+    font-style: normal;
+    font-weight: 400;
+    line-height: normal;
+}
+
+.long__text__block__img {
+    max-width: 638px;
+    max-height: 359px;
+    border-radius: 20px;
+}
+
+/* ============================== */
+
+
+/* PHOTOS SECTION */
+
+.photos {
+    margin-top: 65px;
+}
+
+.photos__header {
+    color: #000;
+    font-family: Montserrat;
+    font-size: 48px;
+    font-style: normal;
+    font-weight: 700;
+    line-height: normal;
+    margin-bottom: 40px;  
+}
+
+.photos__pictures__block {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: repeat(2, 1fr);
+}
+
+.pictures__block__girl__coding__block {
+    grid-row: span 2;
+    max-width: 628px;
+    max-height: 521px;
+    overflow: hidden;
+    border-radius: 20px;
+}
+
+.pictures__block__item {
+    object-fit: cover;
+    width: 100%;
+    border-radius: 20px;
+}
+
+.item_1 {
+    max-width: 628px;
+    min-height: 521px;
+}
+
+.pictures__block__guys__on__podium__block {
+    max-width: 628px;
+    max-height: 252px;
+    overflow: hidden;
+    border-radius: 20px;
+}
+
+.item_2 {
+    width: 100%;
+}
+
+.pictures__block__daniil__bart__block {
+    max-width: 628px;
+    max-height: 260px;
+    border-radius: 20px;
+    overflow: hidden;
+}
+
+.item_3 {
+    width: 100%;
+}
+
+/* ============================= */
+
+/* CONTENDERS SECTION */
+
+.contenders {
+    margin-top: 65px;
+}
+
+.contenders__header {
+    color: #000;
+    font-family: Montserrat;
+    font-size: 48px;
+    font-style: normal;
+    font-weight: 700;
+    line-height: normal;
+}
+
+.contenders__slider__block {
+    margin-top: 41px;
+}
+
+.slider__block__item {
+    position: relative;
+    left: 42px;
+    margin-bottom: 24px;
+}
+
+.slider__block__item::before {
+    content: "";
+    display: block;
+    width: 30px;
+    height: 30px;
+    background-color: #003764;
+    border-radius: 50%;
+    position: absolute;
+    left: -42px;
+}
+
+.slider__block__item::after {
+    content: "";
+    display: block;
+    width: 4px;
+    height: 114px;
+    background-color: #e3e3e3;
+    position: absolute;
+    top: 30px;
+    left: -29px;
+}
+
+
+.slider__block__header {
+    color: #000;
+    font-family: Montserrat;
+    font-size: 24px;
+    font-style: normal;
+    font-weight: 600;   
+    line-height: normal;
+}
+
+.slider__block__container {
+    display: flex;
+    gap: 24px;
+    overflow-x: scroll;
+    scrollbar-width: none;
+    position: relative;
+}
+
+
+
+.slider__block__card {
+    margin-top: 12px;
+}
+
+.slider__block__card {
+    border: 1px solid #E3E3E3;
+    min-width: 442px;
+    border-radius: 20px;
+}
+
+.slider__block__card__container {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 12px;
+}
+
+.card__image__block {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.card__text__block__name {
+    color: #000;
+    font-family: Montserrat;
+    font-size: 20px;
+    font-style: normal;
+    font-weight: 600;
+    line-height: normal;
+}
+
+.card__text__block__competence {
+    color: rgba(0, 0, 0, 0.50);
+    font-family: Montserrat;
+    font-size: 15px;
+    font-style: normal;
+    font-weight: 500;
+    line-height: normal;
+}
+
+/* ============================= */
