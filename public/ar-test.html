@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>JobBlaze AR Job Search</title>
+  <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+  <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
+  <script src="https://raw.githack.com/AR-js-org/AR.js/master/three.js/build/ar-threex-location-only.js"></script>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      position: fixed;
+      width: 100%;
+      height: 100%;
+    }
+    .ui-container {
+      position: fixed;
+      bottom: 20px;
+      left: 0;
+      right: 0;
+      z-index: 10;
+      display: flex;
+      justify-content: center;
+    }
+    .exit-button {
+      background-color: #ff4d4f;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 20px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .job-info {
+      position: fixed;
+      bottom: 80px;
+      left: 20px;
+      right: 20px;
+      background-color: white;
+      border-radius: 10px;
+      padding: 15px;
+      z-index: 9;
+      display: none;
+    }
+    .job-title {
+      font-weight: bold;
+      font-size: 18px;
+      margin-bottom: 5px;
+    }
+    .job-company {
+      color: #666;
+      margin-bottom: 10px;
+    }
+    .job-details {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .apply-button-ui {
+      background-color: #4F46E5;
+      color: white;
+      border: none;
+      padding: 10px;
+      border-radius: 5px;
+      width: 100%;
+      font-weight: bold;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <a-scene
+    vr-mode-ui="enabled: false"
+    embedded
+    arjs="sourceType: webcam; debugUIEnabled: false; detectionMode: mono_and_matrix; matrixCodeType: 3x3;"
+    renderer="logarithmicDepthBuffer: true;"
+  >
+    <a-camera gps-camera rotation-reader></a-camera>
+  </a-scene>
+
+  <div class="ui-container">
+    <button class="exit-button" onclick="window.location.href='/'">Exit AR Mode</button>
+  </div>
+
+  <div class="job-info" id="jobInfo">
+    <div class="job-title" id="jobTitle">Frontend Developer</div>
+    <div class="job-company" id="jobCompany">TechCorp</div>
+    <div class="job-details">
+      <div id="jobLocation">Almaty, KZ</div>
+      <div id="jobSalary">60,000 KZT</div>
+    </div>
+    <button class="apply-button-ui" onclick="showApplyForm()">Apply Now</button>
+  </div>
+
+  <script>
+    // Mock job data
+    const jobs = [
+      {
+        id: 1,
+        title: "Frontend Developer",
+        company: "TechCorp",
+        location: "Almaty, KZ",
+        salary: "60,000 KZT",
+        lat: 43.2389,
+        lon: 76.8897,
+        distance: "0.2 km"
+      },
+      {
+        id: 2,
+        title: "UX/UI Designer",
+        company: "DesignHub",
+        location: "Almaty, KZ",
+        salary: "55,000 KZT",
+        lat: 43.2390,
+        lon: 76.8900,
+        distance: "0.3 km"
+      },
+      {
+        id: 3,
+        title: "Barista",
+        company: "Coffee House",
+        location: "Almaty, KZ",
+        salary: "35,000 KZT",
+        lat: 43.2392,
+        lon: 76.8895,
+        distance: "0.4 km"
+      }
+    ];
+
+    // Wait for scene to load
+    document.addEventListener('DOMContentLoaded', function() {
+      setTimeout(function() {
+        // Get user location (for demo, we'll use Almaty coordinates)
+        const userLocation = {
+          latitude: 43.2389,
+          longitude: 76.8897
+        };
+
+        // Add job markers
+        addJobMarkers(userLocation);
+
+        // Register components
+        registerComponents();
+      }, 1000);
+    });
+
+    // Add job markers to the scene
+    function addJobMarkers(userLocation) {
+      const scene = document.querySelector('a-scene');
+      
+      jobs.forEach((job, index) => {
+        // Create random offsets for demo purposes
+        const latOffset = (Math.random() - 0.5) * 0.002;
+        const lonOffset = (Math.random() - 0.5) * 0.002;
+        
+        // Create entity
+        const entity = document.createElement('a-entity');
+        entity.classList.add('job-entity');
+        entity.setAttribute('data-job-id', job.id);
+        
+        // Position the entity with GPS coordinates
+        entity.setAttribute('gps-entity-place', `latitude: ${userLocation.latitude + latOffset}; longitude: ${userLocation.longitude + lonOffset}`);
+        
+        // Create job card
+        entity.innerHTML = `
+          <a-entity
+            geometry="primitive: plane; width: 2; height: 1.2"
+            material="color: white; opacity: 0.9"
+            position="0 0 0"
+            rotation="0 0 0"
+            scale="1 1 1"
+            class="clickable"
+            job-marker="id: ${job.id}"
+          >
+            <a-text
+              value="${job.title}"
+              align="center"
+              color="#4F46E5"
+              position="0 0.4 0.01"
+              scale="0.5 0.5 0.5"
+            ></a-text>
+            <a-text
+              value="${job.company}"
+              align="center"
+              color="#000"
+              position="0 0.2 0.01"
+              scale="0.4 0.4 0.4"
+            ></a-text>
+            <a-text
+              value="${job.salary}"
+              align="center"
+              color="#000"
+              position="0 0 0.01"
+              scale="0.4 0.4 0.4"
+            ></a-text>
+            <a-text
+              value="${job.distance}"
+              align="center"
+              color="#000"
+              position="0 -0.2 0.01"
+              scale="0.3 0.3 0.3"
+            ></a-text>
+            <a-entity
+              geometry="primitive: plane; width: 1; height: 0.3"
+              material="color: #4F46E5"
+              position="0 -0.4 0.02"
+              class="apply-button"
+              job-apply="id: ${job.id}"
+            >
+              <a-text
+                value="Apply Now"
+                align="center"
+                color="white"
+                position="0 0 0.01"
+                scale="0.3 0.3 0.3"
+              ></a-text>
+            </a-entity>
+          </a-entity>
+        `;
+        
+        scene.appendChild(entity);
+      });
+    }
+
+    // Register custom A-Frame components
+    function registerComponents() {
+      // Register a component to handle job marker interactions
+      AFRAME.registerComponent('job-marker', {
+        schema: {
+          id: {type: 'string'}
+        },
+        init: function() {
+          this.el.addEventListener('click', () => {
+            const jobId = parseInt(this.data.id);
+            const job = jobs.find(j => j.id === jobId);
+            if (job) {
+              showJobInfo(job);
+            }
+          });
+        }
+      });
+
+      // Register a component to handle apply button clicks
+      AFRAME.registerComponent('job-apply', {
+        schema: {
+          id: {type: 'string'}
+        },
+        init: function() {
+          this.el.addEventListener('click', () => {
+            const jobId = parseInt(this.data.id);
+            const job = jobs.find(j => j.id === jobId);
+            if (job) {
+              showJobInfo(job);
+              showApplyForm();
+            }
+          });
+        }
+      });
+
+      // Make entities face the camera
+      setInterval(() => {
+        document.querySelectorAll('.job-entity a-entity').forEach(entity => {
+          entity.setAttribute('look-at', '[gps-camera]');
+        });
+      }, 1000);
+    }
+
+    // Show job info panel
+    function showJobInfo(job) {
+      const jobInfo = document.getElementById('jobInfo');
+      document.getElementById('jobTitle').textContent = job.title;
+      document.getElementById('jobCompany').textContent = job.company;
+      document.getElementById('jobLocation').textContent = job.location;
+      document.getElementById('jobSalary').textContent = job.salary;
+      jobInfo.style.display = 'block';
+    }
+
+    // Show apply form (in a real app, this would show a form)
+    function showApplyForm() {
+      alert('Application form would appear here in a real app');
+    }
+  </script>
+</body>
+</html>
