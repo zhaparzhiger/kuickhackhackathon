@@ -7,8 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { MapPin, Briefcase, DollarSign, Camera, X, Check } from "lucide-react";
-import Script from "next/script";
-import * as tf from "@tensorflow/tfjs";
+import { useXP } from "@/components/xp-provider";
 
 // Define job type
 interface Job {
@@ -50,6 +49,42 @@ const mockJobs: Job[] = [
     type: "Full-time",
     tags: ["Figma", "Adobe XD", "Prototyping"],
   },
+  {
+    id: 3,
+    title: "Barista",
+    company: "Coffee House",
+    location: "Almaty, KZ",
+    salary: "35,000 KZT",
+    lat: 43.2392,
+    lon: 76.8895,
+    distance: "0.4 km",
+    type: "Part-time",
+    tags: ["Customer Service", "Food Service"],
+  },
+  {
+    id: 4,
+    title: "Data Scientist",
+    company: "DataWorks",
+    location: "Almaty, KZ",
+    salary: "75,000 KZT",
+    lat: 43.2385,
+    lon: 76.889,
+    distance: "0.5 km",
+    type: "Full-time",
+    tags: ["Python", "Machine Learning", "SQL"],
+  },
+  {
+    id: 5,
+    title: "Marketing Specialist",
+    company: "GrowthMarketing",
+    location: "Almaty, KZ",
+    salary: "50,000 KZT",
+    lat: 43.2395,
+    lon: 76.8905,
+    distance: "0.6 km",
+    type: "Full-time",
+    tags: ["Digital Marketing", "SEO", "Content Strategy"],
+  },
 ];
 
 // City coordinates
@@ -58,11 +93,6 @@ const cityCoords: { [key: string]: [number, number] } = {
   Astana: [51.1694, 71.4491],
   Shymkent: [42.3167, 69.5901],
 };
-
-// Mock useXP hook (replace with your actual implementation)
-const useXP = () => ({
-  addXP: (points: number) => console.log(`Added ${points} XP`),
-});
 
 export default function ARJobSearch() {
   const [city, setCity] = useState<string>("Almaty");
@@ -75,26 +105,13 @@ export default function ARJobSearch() {
     phone: "",
   });
   const [applicationSubmitted, setApplicationSubmitted] = useState<boolean>(false);
-  const [tfReady, setTfReady] = useState<boolean>(false);
   const [sceneLoaded, setSceneLoaded] = useState<boolean>(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const sceneRef = useRef<HTMLElement>(null);
-  const { addXP } = useXP();
 
   // Handle city change
   const handleCityChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setCity(e.target.value);
-  };
-
-  // Initialize TensorFlow.js
-  const initTensorFlow = async () => {
-    try {
-      await tf.ready();
-      console.log("TensorFlow.js is ready");
-      setTfReady(true);
-    } catch (error) {
-      console.error("Failed to initialize TensorFlow.js:", error);
-    }
   };
 
   // Start AR experience
@@ -109,11 +126,12 @@ export default function ARJobSearch() {
         await videoRef.current.play();
         console.log("Camera started successfully");
         setArActive(true);
-        addXP(10);
+      } else {
+        console.error("videoRef.current is null");
       }
     } catch (err) {
       console.error("Error accessing camera:", err);
-      alert("Failed to access camera: " + (err as Error).message);
+      alert("Не удалось получить доступ к камере: " + (err as Error).message);
     }
   };
 
@@ -130,19 +148,18 @@ export default function ARJobSearch() {
       const entities = sceneRef.current.querySelectorAll(".job-entity");
       entities.forEach((entity) => entity.remove());
     }
+    console.log("AR experience stopped");
   };
 
   // Select a job
   const selectJob = (job: Job) => {
     setSelectedJob(job);
-    addXP(5);
   };
 
   // Handle apply form submission
   const handleApply = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setApplicationSubmitted(true);
-    addXP(15);
     console.log("Application submitted:", { job: selectedJob, applicant: formData });
   };
 
@@ -160,75 +177,72 @@ export default function ARJobSearch() {
     setFormData({ name: "", email: "", phone: "" });
   };
 
-  // Initialize TensorFlow and A-Frame components
+  // Load A-Frame and AR.js scripts
   useEffect(() => {
-    initTensorFlow();
+    const loadScripts = async () => {
+      try {
+        // Load A-Frame
+        const aframeScript = document.createElement("script");
+        aframeScript.src = "https://aframe.io/releases/1.5.0/aframe.min.js";
+        aframeScript.async = true;
+        document.head.appendChild(aframeScript);
 
-    if (typeof window !== "undefined" && window.AFRAME) {
-      console.log("A-Frame is loaded, registering components");
+        // Load AR.js
+        const arjsScript = document.createElement("script");
+        arjsScript.src = "https://cdn.jsdelivr.net/gh/jeromeetienne/AR.js@2.3.1/aframe/build/aframe-ar.min.js";
+        arjsScript.async = true;
+        document.head.appendChild(arjsScript);
 
-      window.AFRAME.registerComponent("job-marker", {
-        schema: { id: { type: "string" } },
-        init: function () {
-          this.el.addEventListener("click", () => {
-            const job = mockJobs.find((j) => j.id === parseInt(this.data.id));
-            if (job) {
-              console.log("Job marker clicked:", job);
-              document.dispatchEvent(
-                new CustomEvent("job-selected", { detail: { job } })
-              );
-            }
-          });
-        },
-      });
+        // Wait for A-Frame to be available
+        const checkAFrame = () => {
+          if (typeof window !== "undefined" && window.AFRAME) {
+            console.log("A-Frame detected");
+            setSceneLoaded(true);
+          } else {
+            console.log("A-Frame not yet loaded, retrying...");
+            setTimeout(checkAFrame, 100);
+          }
+        };
+        aframeScript.onload = checkAFrame;
 
-      window.AFRAME.registerComponent("job-apply", {
-        schema: { id: { type: "string" } },
-        init: function () {
-          this.el.addEventListener("click", () => {
-            const job = mockJobs.find((j) => j.id === parseInt(this.data.id));
-            if (job) {
-              console.log("Apply button clicked:", job);
-              document.dispatchEvent(
-                new CustomEvent("job-apply", { detail: { job } })
-              );
-            }
-          });
-        },
-      });
-
-      setSceneLoaded(true);
-    } else {
-      console.error("A-Frame is not loaded");
-    }
-
-    const handleJobSelect = (e: Event) => {
-      const event = e as CustomEvent<{ job: Job }>;
-      selectJob(event.detail.job);
+        return () => {
+          if (document.head.contains(aframeScript)) document.head.removeChild(aframeScript);
+          if (document.head.contains(arjsScript)) document.head.removeChild(arjsScript);
+        };
+      } catch (err) {
+        console.error("Error loading scripts:", err);
+      }
     };
 
-    const handleJobApply = (e: Event) => {
-      const event = e as CustomEvent<{ job: Job }>;
-      selectJob(event.detail.job);
-      setShowApplyForm(true);
-    };
-
-    document.addEventListener("job-selected", handleJobSelect);
-    document.addEventListener("job-apply", handleJobApply);
-
-    return () => {
-      document.removeEventListener("job-selected", handleJobSelect);
-      document.removeEventListener("job-apply", handleJobApply);
-    };
+    loadScripts();
   }, []);
 
-  // Add job markers to A-Frame scene
+  // Initialize A-Frame and add job markers
   useEffect(() => {
-    if (!arActive || !sceneLoaded || !sceneRef.current) {
-      console.log("AR not active or scene not loaded:", { arActive, sceneLoaded });
+    if (!sceneLoaded || !arActive || !sceneRef.current) {
+      console.log("Initialization check:", { sceneLoaded, arActive, sceneRef: !!sceneRef.current });
       return;
     }
 
+    console.log("A-Frame is loaded, registering components");
+
+    // Register A-Frame component
+    window.AFRAME.registerComponent("job-marker", {
+      schema: { id: { type: "string" } },
+      init: function () {
+        this.el.addEventListener("click", () => {
+          const job = mockJobs.find((j) => j.id === parseInt(this.data.id));
+          if (job) {
+            console.log("Job marker clicked:", job);
+            document.dispatchEvent(
+              new CustomEvent("job-selected", { detail: { job } })
+            );
+          }
+        });
+      },
+    });
+
+    // Add job markers
     console.log("Adding job markers to A-Frame scene");
     const existingEntities = sceneRef.current.querySelectorAll(".job-entity");
     existingEntities.forEach((entity) => entity.remove());
@@ -285,20 +299,6 @@ export default function ARJobSearch() {
             position="0 -0.2 0.01"
             scale="0.3 0.3 0.3"
           ></a-text>
-          <a-entity
-            geometry="primitive: plane; width: 1; height: 0.3"
-            material="color: #4F46E5"
-            position="0 -0.4 0.02"
-            job-apply="id: ${job.id}"
-          >
-            <a-text
-              value="Apply Now"
-              align="center"
-              color="white"
-              position="0 0 0.01"
-              scale="0.3 0.3 0.3"
-            ></a-text>
-          </a-entity>
         </a-entity>
       `;
 
@@ -315,243 +315,268 @@ export default function ARJobSearch() {
     };
     const interval = setInterval(updateEntities, 1000);
 
-    return () => clearInterval(interval);
-  }, [arActive, city, sceneLoaded]);
+    const handleJobSelect = (e: Event) => {
+      const event = e as CustomEvent<{ job: Job }>;
+      selectJob(event.detail.job);
+      setShowApplyForm(true);
+    };
+
+    document.addEventListener("job-selected", handleJobSelect);
+
+    return () => {
+      document.removeEventListener("job-selected", handleJobSelect);
+      clearInterval(interval);
+    };
+  }, [sceneLoaded, arActive, city]);
+
+  // Debug sceneRef and videoRef
+  useEffect(() => {
+    console.log("Debug refs:", { sceneRef: sceneRef.current, videoRef: videoRef.current });
+  }, [arActive, sceneLoaded]);
 
   return (
-    <div className="w-full">
-      <Script
-        src="https://aframe.io/releases/1.4.0/aframe.min.js"
-        strategy="afterInteractive"
-        onLoad={() => {
-          console.log("A-Frame script loaded");
-          if (window.AFRAME) setSceneLoaded(true);
-        }}
-      />
-      <Script
-        src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"
-        strategy="afterInteractive"
-        onLoad={() => console.log("AR.js script loaded")}
-      />
-      <Script
-        src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.18.0/dist/tf.min.js"
-        strategy="afterInteractive"
-        onLoad={() => console.log("TensorFlow.js script loaded")}
-      />
+    <div className="w-full min-h-screen">
+      <h1 className="text-3xl font-bold mb-6 text-primary px-4">AR Поиск Работы</h1>
 
-      <h1 className="text-3xl font-bold mb-6 text-primary">AR Job Search</h1>
-
-      {!arActive ? (
-        <Card className="mb-6">
+      {!arActive && (
+        <Card className="mb-6 mx-4">
           <CardHeader>
-            <CardTitle>Find Jobs in Augmented Reality</CardTitle>
+            <CardTitle>Найти Работу в Дополненной Реальности</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="mb-6">
               <p className="text-gray-600 dark:text-gray-300 mb-4">
-                Experience job hunting in a new way! Point your camera around to see available jobs in your vicinity
-                through augmented reality.
+                Испытайте новый способ поиска работы! Направьте камеру, чтобы увидеть доступные вакансии в вашем районе.
               </p>
               <div className="mb-6">
-                <Label htmlFor="city">Select City</Label>
+                <Label htmlFor="city">Выберите Город</Label>
                 <select
                   id="city"
                   className="w-full mt-1 p-2 rounded-md border border-input bg-background"
                   value={city}
                   onChange={handleCityChange}
                 >
-                  <option value="Almaty">Almaty</option>
-                  <option value="Astana">Astana</option>
-                  <option value="Shymkent">Shymkent</option>
+                  <option value="Almaty">Алматы</option>
+                  <option value="Astana">Астана</option>
+                  <option value="Shymkent">Шымкент</option>
                 </select>
               </div>
-              <Button onClick={startAR} className="w-full" disabled={!tfReady || !sceneLoaded}>
+              <Button onClick={startAR} className="w-full bg-primary hover:bg-primary/90" disabled={!sceneLoaded}>
                 <Camera className="mr-2 h-4 w-4" />
-                Start AR Job Search
+                Начать AR Поиск
               </Button>
-              {!tfReady && <p className="text-amber-500 text-sm mt-2">Loading TensorFlow.js...</p>}
-              {!sceneLoaded && <p className="text-amber-500 text-sm mt-2">Loading AR scene...</p>}
+              {!sceneLoaded && <p className="text-amber-500 text-sm mt-2">Загрузка AR сцены...</p>}
             </div>
           </CardContent>
         </Card>
-      ) : (
-        <div className="relative">
-          <a-scene
-            ref={sceneRef}
-            vr-mode-ui="enabled: false"
-            embedded
-            arjs="sourceType: webcam; debugUIEnabled: true; detectionMode: mono_and_matrix; matrixCodeType: 3x3;"
-            renderer="logarithmicDepthBuffer: true;"
-            className="ar-scene"
-          >
-            <a-camera gps-camera rotation-reader />
-          </a-scene>
-          <video ref={videoRef} className="hidden" autoPlay playsInline muted />
-          <div className="absolute top-4 right-4 z-10">
+      )}
+
+      <div className={`relative w-full h-screen ${arActive ? "block" : "hidden"}`}>
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted
+          className="absolute top-0 left-0 w-full h-full object-cover"
+          style={{ zIndex: 9998 }}
+        />
+        <a-scene
+          ref={sceneRef}
+          vr-mode-ui="enabled: false"
+          embedded
+          arjs="sourceType: webcam; videoTexture: true; debugUIEnabled: false; trackingMethod: best;"
+          renderer="logarithmicDepthBuffer: true;"
+          className="absolute top-0 left-0 w-full h-full"
+          style={{ zIndex: 9999 }}
+        >
+          <a-camera gps-camera rotation-reader />
+        </a-scene>
+        {arActive && (
+          <div className="absolute top-4 right-4" style={{ zIndex: 10000 }}>
             <Button onClick={stopAR} variant="destructive" size="sm" className="rounded-full">
               <X className="h-4 w-4" />
             </Button>
           </div>
+        )}
 
-          {selectedJob && (
-            <Card className="mb-4">
-              <CardContent className="p-4">
-                <div className="flex justify-between items-start mb-2">
-                  <div>
-                    <h2 className="text-xl font-bold">{selectedJob.title}</h2>
-                    <p className="text-gray-600 dark:text-gray-300">{selectedJob.company}</p>
-                  </div>
-                  <Badge className="bg-primary text-white">{selectedJob.distance}</Badge>
+        {selectedJob && (
+          <Card className="absolute bottom-4 left-4 right-4" style={{ zIndex: 10000 }}>
+            <CardContent className="p-4">
+              <div className="flex justify-between items-start mb-2">
+                <div>
+                  <h2 className="text-xl font-bold">{selectedJob.title}</h2>
+                  <p className="text-gray-600 dark:text-gray-300">{selectedJob.company}</p>
                 </div>
-                <div className="grid grid-cols-2 gap-2 mb-3">
-                  <div className="flex items-center text-gray-500">
-                    <MapPin className="h-4 w-4 mr-1" />
-                    <span>{selectedJob.location}</span>
-                  </div>
-                  <div className="flex items-center text-gray-500">
-                    <DollarSign className="h-4 w-4 mr-1" />
-                    <span>{selectedJob.salary}</span>
-                  </div>
-                  <div className="flex items-center text-gray-500">
-                    <Briefcase className="h-4 w-4 mr-1" />
-                    <span>{selectedJob.type}</span>
-                  </div>
+                <Badge className="bg-primary text-white">{selectedJob.distance}</Badge>
+              </div>
+              <div className="grid grid-cols-2 gap-2 mb-3">
+                <div className="flex items-center text-gray-500">
+                  <MapPin className="h-4 w-4 mr-1" />
+                  <span>{selectedJob.location}</span>
                 </div>
-                <div className="flex flex-wrap gap-2 mb-4">
-                  {selectedJob.tags.map((tag) => (
-                    <Badge key={tag} variant="secondary" className="bg-primary/10 text-primary">
-                      {tag}
-                    </Badge>
-                  ))}
+                <div className="flex items-center text-gray-500">
+                  <DollarSign className="h-4 w-4 mr-1" />
+                  <span>{selectedJob.salary}</span>
                 </div>
-                {!showApplyForm && !applicationSubmitted && (
-                  <Button onClick={() => setShowApplyForm(true)} className="w-full">
-                    Apply Now
-                  </Button>
-                )}
-                {showApplyForm && !applicationSubmitted && (
-                  <form onSubmit={handleApply} className="space-y-3">
-                    <div>
-                      <Label htmlFor="name">Full Name</Label>
-                      <Input
-                        id="name"
-                        name="name"
-                        value={formData.name}
-                        onChange={handleInputChange}
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="email">Email</Label>
-                      <Input
-                        id="email"
-                        name="email"
-                        type="email"
-                        value={formData.email}
-                        onChange={handleInputChange}
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="phone">Phone Number</Label>
-                      <Input
-                        id="phone"
-                        name="phone"
-                        value={formData.phone}
-                        onChange={handleInputChange}
-                        required
-                      />
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => setShowApplyForm(false)}
-                        className="flex-1"
-                      >
-                        Cancel
-                      </Button>
-                      <Button type="submit" className="flex-1">
-                        Submit Application
-                      </Button>
-                    </div>
-                  </form>
-                )}
-                {applicationSubmitted && (
-                  <div className="text-center py-4">
-                    <div className="bg-green-100 dark:bg-green-900/30 p-3 rounded-full w-16 h-16 mx-auto mb-3 flex items-center justify-center">
-                      <Check className="h-8 w-8 text-green-600 dark:text-green-400" />
-                    </div>
-                    <h3 className="text-lg font-medium mb-1">Application Submitted!</h3>
-                    <p className="text-gray-500 dark:text-gray-400 mb-4">
-                      Your application for {selectedJob.title} at {selectedJob.company} has been submitted successfully.
-                    </p>
-                    <Button onClick={resetApplication} className="bg-primary hover:bg-primary/90">
-                      Find More Jobs
-                    </Button>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
-        </div>
-      )}
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Jobs in {city}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {mockJobs.map((job) => (
-              <div
-                key={job.id}
-                className="p-4 border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
-                onClick={() => selectJob(job)}
-              >
-                <div className="flex justify-between items-start mb-2">
-                  <div>
-                    <h3 className="font-bold">{job.title}</h3>
-                    <p className="text-gray-600 dark:text-gray-300">{job.company}</p>
-                  </div>
-                  <Badge className="bg-primary/10 text-primary">{job.distance}</Badge>
-                </div>
-                <div className="grid grid-cols-2 gap-2 mb-2">
-                  <div className="flex items-center text-gray-500 text-sm">
-                    <MapPin className="h-4 w-4 mr-1" />
-                    <span>{job.location}</span>
-                  </div>
-                  <div className="flex items-center text-gray-500 text-sm">
-                    <DollarSign className="h-4 w-4 mr-1" />
-                    <span>{job.salary}</span>
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-1 mt-2">
-                  {job.tags.slice(0, 2).map((tag) => (
-                    <Badge key={tag} variant="secondary" className="text-xs">
-                      {tag}
-                    </Badge>
-                  ))}
-                  {job.tags.length > 2 && (
-                    <Badge variant="secondary" className="text-xs">
-                      +{job.tags.length - 2} more
-                    </Badge>
-                  )}
+                <div className="flex items-center text-gray-500">
+                  <Briefcase className="h-4 w-4 mr-1" />
+                  <span>{selectedJob.type}</span>
                 </div>
               </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+              <div className="flex flex-wrap gap-2 mb-4">
+                {selectedJob.tags.map((tag) => (
+                  <Badge key={tag} variant="secondary" className="bg-primary/10 text-primary">
+                    {tag}
+                  </Badge>
+                ))}
+              </div>
+              {!showApplyForm && !applicationSubmitted && (
+                <Button onClick={() => setShowApplyForm(true)} className="w-full bg-primary hover:bg-primary/90">
+                  Подать Заявку
+                </Button>
+              )}
+              {showApplyForm && !applicationSubmitted && (
+                <form onSubmit={handleApply} className="space-y-3">
+                  <div>
+                    <Label htmlFor="name">Полное Имя</Label>
+                    <Input
+                      id="name"
+                      name="name"
+                      value={formData.name}
+                      onChange={handleInputChange}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="email">Электронная Почта</Label>
+                    <Input
+                      id="email"
+                      name="email"
+                      type="email"
+                      value={formData.email}
+                      onChange={handleInputChange}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="phone">Номер Телефона</Label>
+                    <Input
+                      id="phone"
+                      name="phone"
+                      value={formData.phone}
+                      onChange={handleInputChange}
+                      required
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setShowApplyForm(false)}
+                      className="flex-1"
+                    >
+                      Отмена
+                    </Button>
+                    <Button type="submit" className="flex-1 bg-primary hover:bg-primary/90">
+                      Отправить Заявку
+                    </Button>
+                  </div>
+                </form>
+              )}
+              {applicationSubmitted && (
+                <div className="text-center py-4">
+                  <div className="bg-green-100 dark:bg-green-900/30 p-3 rounded-full w-16 h-16 mx-auto mb-3 flex items-center justify-center">
+                    <Check className="h-8 w-8 text-green-600 dark:text-green-400" />
+                  </div>
+                  <h3 className="text-lg font-medium mb-1">Заявка Отправлена!</h3>
+                  <p className="text-gray-500 dark:text-gray-400 mb-4">
+                    Ваша заявка на {selectedJob.title} в {selectedJob.company} успешно отправлена.
+                  </p>
+                  <Button onClick={resetApplication} className="bg-primary hover:bg-primary/90">
+                    Найти Другие Вакансии
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+      </div>
 
-      <style jsx global>{`
+      {!arActive && (
+        <Card className="mx-4">
+          <CardHeader>
+            <CardTitle>
+              Вакансии в {city === "Almaty" ? "Алматы" : city === "Astana" ? "Астане" : "Шымкенте"}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {mockJobs.map((job) => (
+                <div
+                  key={job.id}
+                  className="p-4 border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
+                  onClick={() => selectJob(job)}
+                >
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <h3 className="font-bold">{job.title}</h3>
+                      <p className="text-gray-600 dark:text-gray-300">{job.company}</p>
+                    </div>
+                    <Badge className="bg-primary/10 text-primary">{job.distance}</Badge>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 mb-2">
+                    <div className="flex items-center text-gray-500 text-sm">
+                      <MapPin className="h-4 w-4 mr-1" />
+                      <span>{job.location}</span>
+                    </div>
+                    <div className="flex items-center text-gray-500 text-sm">
+                      <DollarSign className="h-4 w-4 mr-1" />
+                      <span>{job.salary}</span>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {job.tags.slice(0, 2).map((tag) => (
+                      <Badge key={tag} variant="secondary" className="text-xs">
+                        {tag}
+                      </Badge>
+                    ))}
+                    {job.tags.length > 2 && (
+                      <Badge variant="secondary" className="text-xs">
+                        +{job.tags.length - 2} еще
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <style jsx>{`
+        body, html {
+          margin: 0;
+          padding: 0;
+          height: 100vh;
+          overflow: auto;
+        }
+        video {
+          width: 100vw;
+          height: 100vh;
+          object-fit: cover;
+          position: absolute;
+          top: 0;
+          left: 0;
+          display: block;
+        }
         .ar-scene {
-          width: 100%;
-          height: 80vh;
-          position: relative;
-          z-index: 1;
-          border: 2px solid #ccc;
-          background: #000;
+          width: 100vw !important;
+          height: 100vh !important;
+          position: absolute !important;
+          top: 0 !important;
+          left: 0 !important;
+          background: transparent !important;
+          display: block !important;
         }
         .job-entity {
           animation: pulse 2s infinite;
