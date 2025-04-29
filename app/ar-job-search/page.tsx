@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { MapPin, Briefcase, DollarSign, Camera, X, Check } from "lucide-react";
-import { useXP } from "@/components/xp-provider";
+import * as tf from "@tensorflow/tfjs";
+import * as posenet from "@tensorflow-models/posenet";
 
 // Define job type
 interface Job {
@@ -33,7 +34,7 @@ const mockJobs: Job[] = [
     salary: "60,000 KZT",
     lat: 43.2389,
     lon: 76.8897,
-    distance: "0.2 km",
+    distance: "1 m",
     type: "Full-time",
     tags: ["React", "TypeScript", "Tailwind CSS"],
   },
@@ -45,45 +46,9 @@ const mockJobs: Job[] = [
     salary: "55,000 KZT",
     lat: 43.239,
     lon: 76.89,
-    distance: "0.3 km",
+    distance: "2 m",
     type: "Full-time",
     tags: ["Figma", "Adobe XD", "Prototyping"],
-  },
-  {
-    id: 3,
-    title: "Barista",
-    company: "Coffee House",
-    location: "Almaty, KZ",
-    salary: "35,000 KZT",
-    lat: 43.2392,
-    lon: 76.8895,
-    distance: "0.4 km",
-    type: "Part-time",
-    tags: ["Customer Service", "Food Service"],
-  },
-  {
-    id: 4,
-    title: "Data Scientist",
-    company: "DataWorks",
-    location: "Almaty, KZ",
-    salary: "75,000 KZT",
-    lat: 43.2385,
-    lon: 76.889,
-    distance: "0.5 km",
-    type: "Full-time",
-    tags: ["Python", "Machine Learning", "SQL"],
-  },
-  {
-    id: 5,
-    title: "Marketing Specialist",
-    company: "GrowthMarketing",
-    location: "Almaty, KZ",
-    salary: "50,000 KZT",
-    lat: 43.2395,
-    lon: 76.8905,
-    distance: "0.6 km",
-    type: "Full-time",
-    tags: ["Digital Marketing", "SEO", "Content Strategy"],
   },
 ];
 
@@ -105,17 +70,84 @@ export default function ARJobSearch() {
     phone: "",
   });
   const [applicationSubmitted, setApplicationSubmitted] = useState<boolean>(false);
-  const [sceneLoaded, setSceneLoaded] = useState<boolean>(false);
+  const [modelLoaded, setModelLoaded] = useState<boolean>(false);
+  const [backendError, setBackendError] = useState<string | null>(null);
+  const [isMounted, setIsMounted] = useState<boolean>(false);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const sceneRef = useRef<HTMLElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const posenetModelRef = useRef<posenet.PoseNet | null>(null);
+  const animationFrameIdRef = useRef<number | null>(null);
 
   // Handle city change
   const handleCityChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setCity(e.target.value);
   };
 
+  // Initialize TensorFlow.js backend
+  const initializeBackend = async () => {
+    try {
+      console.log("Available backends:", tf.getBackend(), tf.engine().registry);
+      await tf.setBackend("webgl");
+      await tf.ready();
+      console.log("WebGL backend set successfully");
+    } catch (err) {
+      console.warn("WebGL backend failed, falling back to CPU:", err);
+      try {
+        await tf.setBackend("cpu");
+        await tf.ready();
+        console.log("CPU backend set successfully");
+      } catch (cpuErr) {
+        console.error("Failed to set CPU backend:", cpuErr);
+        setBackendError("Не удалось инициализировать TensorFlow.js: " + (cpuErr as Error).message);
+      }
+    }
+  };
+
+  // Load PoseNet model
+  const loadPoseNet = async () => {
+    try {
+      console.log("Loading PoseNet model...");
+      const net = await posenet.load({
+        architecture: "MobileNetV1",
+        outputStride: 16,
+        inputResolution: { width: 320, height: 240 },
+        multiplier: 0.5,
+      });
+      posenetModelRef.current = net;
+      setModelLoaded(true);
+      console.log("PoseNet model loaded successfully");
+    } catch (err) {
+      console.error("Error loading PoseNet model:", err);
+      setBackendError("Не удалось загрузить модель PoseNet: " + (err as Error).message);
+    }
+  };
+
+  useEffect(() => {
+    const init = async () => {
+      await initializeBackend();
+      if (!backendError) {
+        await loadPoseNet();
+      }
+    };
+    init();
+  }, []);
+
+  // Ensure the video element is mounted
+  useEffect(() => {
+    if (videoRef.current) {
+      setIsMounted(true);
+      console.log("videoRef is mounted");
+    }
+  }, [arActive]);
+
   // Start AR experience
   const startAR = async () => {
+    if (!isMounted) {
+      console.error("Component not fully mounted, videoRef is not ready");
+      alert("Ошибка: видео элемент не готов. Попробуйте снова.");
+      return;
+    }
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "environment" },
@@ -124,10 +156,12 @@ export default function ARJobSearch() {
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
-        console.log("Camera started successfully");
+        console.log("Video playback started successfully");
         setArActive(true);
+        detectPose();
       } else {
-        console.error("videoRef.current is null");
+        console.error("videoRef.current is null after mounting");
+        alert("Ошибка: videoRef.current не инициализирован");
       }
     } catch (err) {
       console.error("Error accessing camera:", err);
@@ -142,18 +176,19 @@ export default function ARJobSearch() {
       tracks.forEach((track) => track.stop());
       videoRef.current.srcObject = null;
     }
+    if (animationFrameIdRef.current) {
+      cancelAnimationFrame(animationFrameIdRef.current);
+    }
     setArActive(false);
     setSelectedJob(null);
-    if (sceneRef.current) {
-      const entities = sceneRef.current.querySelectorAll(".job-entity");
-      entities.forEach((entity) => entity.remove());
-    }
     console.log("AR experience stopped");
   };
 
   // Select a job
   const selectJob = (job: Job) => {
     setSelectedJob(job);
+    setShowApplyForm(false);
+    console.log("Selected job:", job);
   };
 
   // Handle apply form submission
@@ -177,176 +212,135 @@ export default function ARJobSearch() {
     setFormData({ name: "", email: "", phone: "" });
   };
 
-  // Load A-Frame and AR.js scripts
-  useEffect(() => {
-    const loadScripts = async () => {
-      try {
-        // Load A-Frame
-        const aframeScript = document.createElement("script");
-        aframeScript.src = "https://aframe.io/releases/1.5.0/aframe.min.js";
-        aframeScript.async = true;
-        document.head.appendChild(aframeScript);
+  // Draw job markers on the canvas
+  const drawJobMarkers = (ctx: CanvasRenderingContext2D, x: number, y: number) => {
+    console.log(`Drawing job markers at x: ${x}, y: ${y}`);
+    mockJobs.forEach((job, index) => {
+      // Reduce the X offset to keep markers closer together
+      const markerX = x + (index * 100 - 50); // Reduced from 150 to 100, and 75 to 50
+      const markerY = y - 50; // Reduced from 100 to 50 to keep it closer to the nose
+      const markerWidth = 120;
+      const markerHeight = 80;
 
-        // Load AR.js
-        const arjsScript = document.createElement("script");
-        arjsScript.src = "https://cdn.jsdelivr.net/gh/jeromeetienne/AR.js@2.3.1/aframe/build/aframe-ar.min.js";
-        arjsScript.async = true;
-        document.head.appendChild(arjsScript);
+      // Ensure the marker stays within canvas bounds
+      const adjustedX = Math.max(markerWidth / 2, Math.min(markerX, ctx.canvas.width - markerWidth / 2));
+      const adjustedY = Math.max(markerHeight / 2, Math.min(markerY, ctx.canvas.height - markerHeight / 2));
 
-        // Wait for A-Frame to be available
-        const checkAFrame = () => {
-          if (typeof window !== "undefined" && window.AFRAME) {
-            console.log("A-Frame detected");
-            setSceneLoaded(true);
-          } else {
-            console.log("A-Frame not yet loaded, retrying...");
-            setTimeout(checkAFrame, 100);
-          }
-        };
-        aframeScript.onload = checkAFrame;
+      ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+      ctx.fillRect(adjustedX - markerWidth / 2, adjustedY - markerHeight / 2, markerWidth, markerHeight);
 
-        return () => {
-          if (document.head.contains(aframeScript)) document.head.removeChild(aframeScript);
-          if (document.head.contains(arjsScript)) document.head.removeChild(arjsScript);
-        };
-      } catch (err) {
-        console.error("Error loading scripts:", err);
-      }
-    };
+      ctx.fillStyle = "#1E3A8A";
+      ctx.font = "16px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText(job.title, adjustedX, adjustedY - 10);
+      ctx.fillStyle = "#000";
+      ctx.font = "12px Arial";
+      ctx.fillText(job.company, adjustedX, adjustedY + 5);
+      ctx.fillText(job.salary, adjustedX, adjustedY + 20);
+      ctx.fillText(job.distance, adjustedX, adjustedY + 35);
 
-    loadScripts();
-  }, []);
+      (job as any).markerBounds = {
+        x: adjustedX - markerWidth / 2,
+        y: adjustedY - markerHeight / 2,
+        width: markerWidth,
+        height: markerHeight,
+      };
+      console.log(`Marker for ${job.title} drawn at x: ${adjustedX}, y: ${adjustedY}`);
+    });
+  };
 
-  // Initialize A-Frame and add job markers
-  useEffect(() => {
-    if (!sceneLoaded || !arActive || !sceneRef.current) {
-      console.log("Initialization check:", { sceneLoaded, arActive, sceneRef: !!sceneRef.current });
+  // Detect poses and draw markers
+  const detectPose = async () => {
+    if (!posenetModelRef.current || !videoRef.current || !canvasRef.current) {
+      console.log("Not ready to detect poses:", {
+        model: !!posenetModelRef.current,
+        video: !!videoRef.current,
+        canvas: !!canvasRef.current,
+      });
       return;
     }
 
-    console.log("A-Frame is loaded, registering components");
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
 
-    // Register A-Frame component
-    window.AFRAME.registerComponent("job-marker", {
-      schema: { id: { type: "string" } },
-      init: function () {
-        this.el.addEventListener("click", () => {
-          const job = mockJobs.find((j) => j.id === parseInt(this.data.id));
-          if (job) {
-            console.log("Job marker clicked:", job);
-            document.dispatchEvent(
-              new CustomEvent("job-selected", { detail: { job } })
-            );
-          }
-        });
-      },
-    });
+    if (!ctx) {
+      console.error("Failed to get 2D context from canvas");
+      return;
+    }
 
-    // Add job markers
-    console.log("Adding job markers to A-Frame scene");
-    const existingEntities = sceneRef.current.querySelectorAll(".job-entity");
-    existingEntities.forEach((entity) => entity.remove());
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    console.log(`Canvas dimensions set to: ${canvas.width}x${canvas.height}`);
 
-    const userLocation = { latitude: cityCoords[city][0], longitude: cityCoords[city][1] };
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    mockJobs.forEach((job) => {
-      const entity = document.createElement("a-entity");
-      entity.classList.add("job-entity");
-      entity.setAttribute("data-job-id", job.id.toString());
+    ctx.fillStyle = "red";
+    ctx.fillRect(10, 10, 50, 50);
 
-      const latOffset = (Math.random() - 0.5) * 0.002;
-      const lonOffset = (Math.random() - 0.5) * 0.002;
+    let pose;
+    try {
+      pose = await posenetModelRef.current.estimateSinglePose(video, {
+        flipHorizontal: true, // Flip horizontally for front-facing camera
+      });
+      console.log("Detected pose:", pose);
+    } catch (err) {
+      console.error("Error during pose detection:", err);
+      return;
+    }
 
-      entity.setAttribute(
-        "gps-entity-place",
-        `latitude: ${userLocation.latitude + latOffset}; longitude: ${userLocation.longitude + lonOffset}`
+    const nose = pose.keypoints.find((kp) => kp.part === "nose");
+    if (nose && nose.score > 0.2) {
+      const { x, y } = nose.position;
+      console.log(`Nose detected at x: ${x}, y: ${y}, confidence: ${nose.score}`);
+      drawJobMarkers(ctx, x, y);
+    } else {
+      console.log("No pose detected, using fallback position");
+      drawJobMarkers(ctx, canvas.width / 2, canvas.height / 4);
+    }
+
+    // Add a delay to reduce CPU load
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    animationFrameIdRef.current = requestAnimationFrame(detectPose);
+  };
+
+  // Handle canvas click to select a job
+  const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!canvasRef.current) return;
+
+    const rect = canvasRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    const clickedJob = mockJobs.find((job) => {
+      const bounds = (job as any).markerBounds;
+      if (!bounds) return false;
+      return (
+        x >= bounds.x &&
+        x <= bounds.x + bounds.width &&
+        y >= bounds.y &&
+        y <= bounds.y + bounds.height
       );
-
-      entity.innerHTML = `
-        <a-entity
-          geometry="primitive: plane; width: 2; height: 1.2"
-          material="color: white; opacity: 0.9"
-          position="0 0 0"
-          rotation="0 0 0"
-          scale="1 1 1"
-          job-marker="id: ${job.id}"
-        >
-          <a-text
-            value="${job.title}"
-            align="center"
-            color="#4F46E5"
-            position="0 0.4 0.01"
-            scale="0.5 0.5 0.5"
-          ></a-text>
-          <a-text
-            value="${job.company}"
-            align="center"
-            color="#000"
-            position="0 0.2 0.01"
-            scale="0.4 0.4 0.4"
-          ></a-text>
-          <a-text
-            value="${job.salary}"
-            align="center"
-            color="#000"
-            position="0 0 0.01"
-            scale="0.4 0.4 0.4"
-          ></a-text>
-          <a-text
-            value="${job.distance}"
-            align="center"
-            color="#000"
-            position="0 -0.2 0.01"
-            scale="0.3 0.3 0.3"
-          ></a-text>
-        </a-entity>
-      `;
-
-      sceneRef.current.appendChild(entity);
-      console.log(`Added job marker for ${job.title}`);
     });
 
-    const updateEntities = () => {
-      if (sceneRef.current) {
-        sceneRef.current.querySelectorAll(".job-entity a-entity").forEach((entity) => {
-          entity.setAttribute("look-at", "[gps-camera]");
-        });
-      }
-    };
-    const interval = setInterval(updateEntities, 1000);
-
-    const handleJobSelect = (e: Event) => {
-      const event = e as CustomEvent<{ job: Job }>;
-      selectJob(event.detail.job);
-      setShowApplyForm(true);
-    };
-
-    document.addEventListener("job-selected", handleJobSelect);
-
-    return () => {
-      document.removeEventListener("job-selected", handleJobSelect);
-      clearInterval(interval);
-    };
-  }, [sceneLoaded, arActive, city]);
-
-  // Debug sceneRef and videoRef
-  useEffect(() => {
-    console.log("Debug refs:", { sceneRef: sceneRef.current, videoRef: videoRef.current });
-  }, [arActive, sceneLoaded]);
+    if (clickedJob) {
+      selectJob(clickedJob);
+    }
+  };
 
   return (
-    <div className="w-full min-h-screen">
-      <h1 className="text-3xl font-bold mb-6 text-primary px-4">AR Поиск Работы</h1>
+    <div className="w-full min-h-screen bg-gray-100">
+      <h1 className="text-3xl font-bold mb-6 text-primary px-4 pt-4">AR Поиск Работы</h1>
 
       {!arActive && (
-        <Card className="mb-6 mx-4">
+        <Card className="mb-6 mx-4 shadow-md">
           <CardHeader>
             <CardTitle>Найти Работу в Дополненной Реальности</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="mb-6">
               <p className="text-gray-600 dark:text-gray-300 mb-4">
-                Испытайте новый способ поиска работы! Направьте камеру, чтобы увидеть доступные вакансии в вашем районе.
+                Направьте камеру, чтобы увидеть вакансии в вашем окружении!
               </p>
               <div className="mb-6">
                 <Label htmlFor="city">Выберите Город</Label>
@@ -361,94 +355,127 @@ export default function ARJobSearch() {
                   <option value="Shymkent">Шымкент</option>
                 </select>
               </div>
-              <Button onClick={startAR} className="w-full bg-primary hover:bg-primary/90" disabled={!sceneLoaded}>
+              <Button
+                onClick={startAR}
+                className="w-full bg-primary hover:bg-primary/90"
+                disabled={!modelLoaded || !!backendError}
+              >
                 <Camera className="mr-2 h-4 w-4" />
                 Начать AR Поиск
               </Button>
-              {!sceneLoaded && <p className="text-amber-500 text-sm mt-2">Загрузка AR сцены...</p>}
+              {!modelLoaded && !backendError && (
+                <p className="text-amber-500 text-sm mt-2">Загрузка модели TensorFlow.js...</p>
+              )}
+              {backendError && (
+                <p className="text-red-500 text-sm mt-2">{backendError}</p>
+              )}
             </div>
           </CardContent>
         </Card>
       )}
 
-      <div className={`relative w-full h-screen ${arActive ? "block" : "hidden"}`}>
+      <div
+        className="relative w-[70vw] h-[100vh] max-w-[500px] mx-auto"
+        style={{ display: arActive ? "block" : "none" }}
+      >
         <video
           ref={videoRef}
           autoPlay
           playsInline
           muted
-          className="absolute top-0 left-0 w-full h-full object-cover"
-          style={{ zIndex: 9998 }}
+          className="absolute top-0 left-0 w-full h-full object-cover rounded-lg shadow-lg"
+          style={{ zIndex: 1 }}
         />
-        <a-scene
-          ref={sceneRef}
-          vr-mode-ui="enabled: false"
-          embedded
-          arjs="sourceType: webcam; videoTexture: true; debugUIEnabled: false; trackingMethod: best;"
-          renderer="logarithmicDepthBuffer: true;"
+        <canvas
+          ref={canvasRef}
           className="absolute top-0 left-0 w-full h-full"
-          style={{ zIndex: 9999 }}
-        >
-          <a-camera gps-camera rotation-reader />
-        </a-scene>
-        {arActive && (
-          <div className="absolute top-4 right-4" style={{ zIndex: 10000 }}>
-            <Button onClick={stopAR} variant="destructive" size="sm" className="rounded-full">
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-        )}
+          style={{ zIndex: 2 }}
+          onClick={handleCanvasClick}
+        />
+        <div className="absolute top-2 right-2" style={{ zIndex: 3 }}>
+          <Button
+            onClick={stopAR}
+            variant="destructive"
+            size="sm"
+            className="rounded-full shadow-md"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
 
         {selectedJob && (
-          <Card className="absolute bottom-4 left-4 right-4" style={{ zIndex: 10000 }}>
+          <Card
+            className="absolute bottom-2 left-2 right-2 bg-white/95 shadow-lg rounded-lg"
+            style={{ zIndex: 3 }}
+          >
             <CardContent className="p-4">
               <div className="flex justify-between items-start mb-2">
                 <div>
-                  <h2 className="text-xl font-bold">{selectedJob.title}</h2>
-                  <p className="text-gray-600 dark:text-gray-300">{selectedJob.company}</p>
+                  <h2 className="text-lg font-bold text-primary">{selectedJob.title}</h2>
+                  <p className="text-sm text-gray-600">{selectedJob.company}</p>
                 </div>
-                <Badge className="bg-primary text-white">{selectedJob.distance}</Badge>
+                <div className="flex items-center gap-2">
+                  <Badge className="bg-primary text-white text-xs">
+                    {selectedJob.distance}
+                  </Badge>
+                  <Button
+                    onClick={() => setSelectedJob(null)}
+                    variant="ghost"
+                    size="sm"
+                    className="text-gray-500 hover:text-gray-700"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
-              <div className="grid grid-cols-2 gap-2 mb-3">
-                <div className="flex items-center text-gray-500">
+              <div className="grid grid-cols-2 gap-2 mb-3 text-sm text-gray-500">
+                <div className="flex items-center">
                   <MapPin className="h-4 w-4 mr-1" />
                   <span>{selectedJob.location}</span>
                 </div>
-                <div className="flex items-center text-gray-500">
+                <div className="flex items-center">
                   <DollarSign className="h-4 w-4 mr-1" />
                   <span>{selectedJob.salary}</span>
                 </div>
-                <div className="flex items-center text-gray-500">
+                <div className="flex items-center">
                   <Briefcase className="h-4 w-4 mr-1" />
                   <span>{selectedJob.type}</span>
                 </div>
               </div>
-              <div className="flex flex-wrap gap-2 mb-4">
+              <div className="flex flex-wrap gap-1 mb-3">
                 {selectedJob.tags.map((tag) => (
-                  <Badge key={tag} variant="secondary" className="bg-primary/10 text-primary">
+                  <Badge key={tag} variant="secondary" className="text-xs">
                     {tag}
                   </Badge>
                 ))}
               </div>
               {!showApplyForm && !applicationSubmitted && (
-                <Button onClick={() => setShowApplyForm(true)} className="w-full bg-primary hover:bg-primary/90">
+                <Button
+                  onClick={() => setShowApplyForm(true)}
+                  className="w-full bg-primary hover:bg-primary/90 text-sm"
+                >
                   Подать Заявку
                 </Button>
               )}
               {showApplyForm && !applicationSubmitted && (
                 <form onSubmit={handleApply} className="space-y-3">
                   <div>
-                    <Label htmlFor="name">Полное Имя</Label>
+                    <Label htmlFor="name" className="text-xs">
+                      Полное Имя
+                    </Label>
                     <Input
                       id="name"
                       name="name"
                       value={formData.name}
                       onChange={handleInputChange}
                       required
+                      className="text-sm"
                     />
                   </div>
                   <div>
-                    <Label htmlFor="email">Электронная Почта</Label>
+                    <Label htmlFor="email" className="text-xs">
+                      Электронная Почта
+                    </Label>
                     <Input
                       id="email"
                       name="email"
@@ -456,16 +483,20 @@ export default function ARJobSearch() {
                       value={formData.email}
                       onChange={handleInputChange}
                       required
+                      className="text-sm"
                     />
                   </div>
                   <div>
-                    <Label htmlFor="phone">Номер Телефона</Label>
+                    <Label htmlFor="phone" className="text-xs">
+                      Номер Телефона
+                    </Label>
                     <Input
                       id="phone"
                       name="phone"
                       value={formData.phone}
                       onChange={handleInputChange}
                       required
+                      className="text-sm"
                     />
                   </div>
                   <div className="flex gap-2">
@@ -473,26 +504,27 @@ export default function ARJobSearch() {
                       type="button"
                       variant="outline"
                       onClick={() => setShowApplyForm(false)}
-                      className="flex-1"
+                      className="flex-1 text-sm"
                     >
                       Отмена
                     </Button>
-                    <Button type="submit" className="flex-1 bg-primary hover:bg-primary/90">
-                      Отправить Заявку
+                    <Button
+                      type="submit"
+                      className="flex-1 bg-primary hover:bg-primary/90 text-sm"
+                    >
+                      Отправить
                     </Button>
                   </div>
                 </form>
               )}
               {applicationSubmitted && (
-                <div className="text-center py-4">
-                  <div className="bg-green-100 dark:bg-green-900/30 p-3 rounded-full w-16 h-16 mx-auto mb-3 flex items-center justify-center">
-                    <Check className="h-8 w-8 text-green-600 dark:text-green-400" />
-                  </div>
-                  <h3 className="text-lg font-medium mb-1">Заявка Отправлена!</h3>
-                  <p className="text-gray-500 dark:text-gray-400 mb-4">
-                    Ваша заявка на {selectedJob.title} в {selectedJob.company} успешно отправлена.
-                  </p>
-                  <Button onClick={resetApplication} className="bg-primary hover:bg-primary/90">
+                <div className="text-center py-3">
+                  <Check className="h-6 w-6 text-green-600 mx-auto mb-2" />
+                  <h3 className="text-sm font-medium">Заявка Отправлена!</h3>
+                  <Button
+                    onClick={resetApplication}
+                    className="mt-3 bg-primary hover:bg-primary/90 text-sm"
+                  >
                     Найти Другие Вакансии
                   </Button>
                 </div>
@@ -503,7 +535,7 @@ export default function ARJobSearch() {
       </div>
 
       {!arActive && (
-        <Card className="mx-4">
+        <Card className="mx-4 shadow-md">
           <CardHeader>
             <CardTitle>
               Вакансии в {city === "Almaty" ? "Алматы" : city === "Astana" ? "Астане" : "Шымкенте"}
@@ -554,43 +586,30 @@ export default function ARJobSearch() {
       )}
 
       <style jsx>{`
-        body, html {
+        body,
+        html {
           margin: 0;
           padding: 0;
           height: 100vh;
           overflow: auto;
         }
         video {
-          width: 100vw;
-          height: 100vh;
+          width: 100%;
+          height: 100%;
           object-fit: cover;
           position: absolute;
           top: 0;
           left: 0;
           display: block;
+          border-radius: 0.5rem;
         }
-        .ar-scene {
-          width: 100vw !important;
-          height: 100vh !important;
-          position: absolute !important;
-          top: 0 !important;
-          left: 0 !important;
-          background: transparent !important;
-          display: block !important;
-        }
-        .job-entity {
-          animation: pulse 2s infinite;
-        }
-        @keyframes pulse {
-          0% {
-            transform: scale(1);
-          }
-          50% {
-            transform: scale(1.05);
-          }
-          100% {
-            transform: scale(1);
-          }
+        canvas {
+          width: 100%;
+          height: 100%;
+          position: absolute;
+          top: 0;
+          left: 0;
+          border-radius: 0.5rem;
         }
       `}</style>
     </div>
