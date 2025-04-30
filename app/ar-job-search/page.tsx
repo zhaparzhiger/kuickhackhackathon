@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Briefcase, DollarSign, X, Check, Camera } from "lucide-react";
+import { MapPin, Briefcase, DollarSign, X, Check, Camera, Compass } from "lucide-react";
 import jobsData from "@/public/vacancies/jobs.json";
 
 // Define job type
@@ -66,23 +66,39 @@ const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
   return R * c; // Расстояние в метрах
 };
 
-// Проверка, находится ли объект в поле зрения
-const isInFieldOfView = (
+// Преобразование геолокации в экранные координаты
+const getScreenCoordinates = (
   job: Job,
   userLocation: { lat: number; lon: number },
-  deviceOrientation: { alpha: number | null }
-): boolean => {
-  if (!userLocation || deviceOrientation.alpha === null) return false;
+  calibrationAngle: number, // Угол калибровки (направление севера)
+  canvasWidth: number,
+  canvasHeight: number
+): { x: number; y: number; visible: boolean } | null => {
+  if (!userLocation) return null;
 
   const bearing = calculateBearing(userLocation.lat, userLocation.lon, job.lat, job.lon);
-  const fov = 90; // Угол обзора камеры (увеличили до 90 градусов)
-  const relativeAngle = (bearing - deviceOrientation.alpha + 360) % 360;
+  const fov = 90; // Угол обзора камеры
+  const relativeAngle = (bearing - calibrationAngle + 360) % 360;
 
-  const inView = relativeAngle <= fov / 2 || relativeAngle >= 360 - fov / 2;
+  const distance = calculateDistance(userLocation.lat, userLocation.lon, job.lat, job.lon);
+  if (distance > 500) {
+    // Ограничиваем радиус видимости до 500 метров
+    return { x: 0, y: 0, visible: false };
+  }
+
+  if (relativeAngle > fov / 2 && relativeAngle < 360 - fov / 2) {
+    return { x: 0, y: 0, visible: false };
+  }
+
+  const normalizedAngle = (relativeAngle - fov / 2) / fov;
+  const x = canvasWidth * (0.5 + normalizedAngle);
+  const y = canvasHeight * 0.3; // Фиксируем метку в верхней части экрана
+
   console.log(
-    `Job: ${job.title}, Bearing: ${bearing}, Device Alpha: ${deviceOrientation.alpha}, Relative Angle: ${relativeAngle}, In View: ${inView}`
+    `Job: ${job.title}, Distance: ${distance}m, Bearing: ${bearing}, Calibration Angle: ${calibrationAngle}, Relative Angle: ${relativeAngle}, Screen X: ${x}`
   );
-  return inView;
+
+  return { x, y, visible: true };
 };
 
 export default function ARJobSearch() {
@@ -97,15 +113,11 @@ export default function ARJobSearch() {
   const [applicationSubmitted, setApplicationSubmitted] = useState<boolean>(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [userLocation, setUserLocation] = useState<{ lat: number; lon: number } | null>(null);
-  const [deviceOrientation, setDeviceOrientation] = useState<{
-    alpha: number | null;
-    beta: number | null;
-    gamma: number | null;
-  }>({ alpha: null, beta: null, gamma: null });
+  const [calibrationAngle, setCalibrationAngle] = useState<number>(0); // Угол калибровки (по умолчанию север = 0)
+  const [isCalibrated, setIsCalibrated] = useState<boolean>(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationFrameIdRef = useRef<number | null>(null);
-  const [alertShown, setAlertShown] = useState<boolean>(false); // Флаг для предотвращения многократных alert
 
   // Инициализация вакансий с динамической дистанцией
   const [jobs, setJobs] = useState<Job[]>(jobsData.jobs.map((job) => ({ ...job, distance: "0 m" })));
@@ -134,21 +146,6 @@ export default function ARJobSearch() {
     }
   }, []);
 
-  // Получение ориентации устройства
-  useEffect(() => {
-    const handleOrientation = (event: DeviceOrientationEvent) => {
-      const orientation = {
-        alpha: event.alpha,
-        beta: event.beta,
-        gamma: event.gamma,
-      };
-      setDeviceOrientation(orientation);
-      console.log("Device Orientation:", orientation);
-    };
-    window.addEventListener("deviceorientation", handleOrientation);
-    return () => window.removeEventListener("deviceorientation", handleOrientation);
-  }, []);
-
   // Обновление дистанции при изменении местоположения
   useEffect(() => {
     if (userLocation) {
@@ -162,6 +159,14 @@ export default function ARJobSearch() {
       );
     }
   }, [userLocation]);
+
+  // Калибровка направления
+  const calibrateDirection = () => {
+    // Предполагаем, что пользователь направил камеру на север
+    alert("Направьте камеру на север и нажмите OK.");
+    setCalibrationAngle(0); // Устанавливаем угол калибровки (север = 0)
+    setIsCalibrated(true);
+  };
 
   // Handle city change
   const handleCityChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -199,7 +204,7 @@ export default function ARJobSearch() {
     setArActive(false);
     setSelectedJob(null);
     setCameraError(null);
-    setAlertShown(false);
+    setIsCalibrated(false);
   };
 
   // Select a job
@@ -228,7 +233,7 @@ export default function ARJobSearch() {
     setFormData({ name: "", email: "" });
   };
 
-  // Animate markers and check for alert
+  // Animate markers
   const animateMarkers = () => {
     if (!canvasRef.current || !videoRef.current) return;
     const canvas = canvasRef.current;
@@ -242,31 +247,60 @@ export default function ARJobSearch() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(videoRef.current!, 0, 0, canvas.width, canvas.height);
 
-      if (userLocation && deviceOrientation.alpha !== null) {
+      if (userLocation && isCalibrated) {
         jobs.forEach((job) => {
-          const distance = calculateDistance(
-            userLocation.lat,
-            userLocation.lon,
-            job.lat,
-            job.lon
+          const coords = getScreenCoordinates(
+            job,
+            userLocation,
+            calibrationAngle,
+            canvas.width,
+            canvas.height
           );
-          console.log(`Distance to ${job.title}: ${distance} meters`);
 
-          // Проверяем, находится ли пользователь в радиусе 50 метров
-          if (distance <= 50) {
-            // Проверяем, наводит ли пользователь камеру на дом
-            if (isInFieldOfView(job, userLocation, deviceOrientation) && !alertShown) {
-              alert(
-                `Вакансия: ${job.title}\nКомпания: ${job.company}\nЗарплата: ${job.salary}\nРасстояние: ${job.distance}`
-              );
-              setAlertShown(true); // Предотвращаем повторный alert
-            }
-          } else {
-            setAlertShown(false); // Сбрасываем флаг, если вышли из радиуса
+          if (coords && coords.visible) {
+            const { x, y } = coords;
+            const markerWidth = 160;
+            const markerHeight = 100;
+            const floatOffset = Math.sin(Date.now() / 500) * 5;
+
+            // Рисуем маркер
+            ctx.fillStyle =
+              job.title === "UX/UI Designer"
+                ? "rgba(59, 130, 246, 0.9)"
+                : "rgba(255, 255, 255, 0.9)";
+            ctx.shadowColor = "rgba(0, 0, 0, 0.3)";
+            ctx.shadowBlur = 10;
+            ctx.beginPath();
+            ctx.roundRect(
+              x - markerWidth / 2,
+              y - markerHeight / 2 + floatOffset,
+              markerWidth,
+              markerHeight,
+              12
+            );
+            ctx.fill();
+            ctx.shadowBlur = 0;
+
+            ctx.fillStyle = job.title === "UX/UI Designer" ? "#ffffff" : "#1e3a8a";
+            ctx.font = "bold 16px Roboto, sans-serif";
+            ctx.textAlign = "center";
+            ctx.fillText(job.title, x, y - 20 + floatOffset);
+            ctx.fillStyle = "#4b5563";
+            ctx.font = "14px Roboto, sans-serif";
+            ctx.fillText(job.company, x, y + floatOffset);
+            ctx.fillText(`${job.salary} | ${job.distance}`, x, y + 20 + floatOffset);
+
+            // Сохраняем границы для кликов
+            job.markerBounds = {
+              x: x - markerWidth / 2,
+              y: y - markerHeight / 2 + floatOffset,
+              width: markerWidth,
+              height: markerHeight,
+            };
           }
         });
       } else {
-        console.log("Waiting for userLocation or deviceOrientation...");
+        console.log("Waiting for userLocation or calibration...");
       }
 
       animationFrameIdRef.current = requestAnimationFrame(draw);
@@ -369,6 +403,14 @@ export default function ARJobSearch() {
           className="absolute top-2 right-2 rounded-full shadow-md bg-red-500 hover:bg-red-600 text-white"
         >
           <X className="h-4 w-4" />
+        </Button>
+
+        <Button
+          onClick={calibrateDirection}
+          size="sm"
+          className="absolute top-2 left-2 rounded-full shadow-md bg-blue-500 hover:bg-blue-600 text-white"
+        >
+          <Compass className="h-4 w-4" />
         </Button>
 
         {selectedJob && (
