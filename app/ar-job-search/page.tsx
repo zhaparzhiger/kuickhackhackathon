@@ -70,19 +70,18 @@ const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
 const getScreenCoordinates = (
   job: Job,
   userLocation: { lat: number; lon: number },
-  calibrationAngle: number, // Угол калибровки (направление севера)
+  calibrationAngle: number,
   canvasWidth: number,
   canvasHeight: number
 ): { x: number; y: number; visible: boolean } | null => {
   if (!userLocation) return null;
 
   const bearing = calculateBearing(userLocation.lat, userLocation.lon, job.lat, job.lon);
-  const fov = 90; // Угол обзора камеры
+  const fov = 90;
   const relativeAngle = (bearing - calibrationAngle + 360) % 360;
 
   const distance = calculateDistance(userLocation.lat, userLocation.lon, job.lat, job.lon);
   if (distance > 500) {
-    // Ограничиваем радиус видимости до 500 метров
     return { x: 0, y: 0, visible: false };
   }
 
@@ -92,7 +91,7 @@ const getScreenCoordinates = (
 
   const normalizedAngle = (relativeAngle - fov / 2) / fov;
   const x = canvasWidth * (0.5 + normalizedAngle);
-  const y = canvasHeight * 0.3; // Фиксируем метку в верхней части экрана
+  const y = canvasHeight * 0.3;
 
   console.log(
     `Job: ${job.title}, Distance: ${distance}m, Bearing: ${bearing}, Calibration Angle: ${calibrationAngle}, Relative Angle: ${relativeAngle}, Screen X: ${x}`
@@ -113,7 +112,7 @@ export default function ARJobSearch() {
   const [applicationSubmitted, setApplicationSubmitted] = useState<boolean>(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [userLocation, setUserLocation] = useState<{ lat: number; lon: number } | null>(null);
-  const [calibrationAngle, setCalibrationAngle] = useState<number>(0); // Угол калибровки (по умолчанию север = 0)
+  const [calibrationAngle, setCalibrationAngle] = useState<number>(0);
   const [isCalibrated, setIsCalibrated] = useState<boolean>(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -162,9 +161,8 @@ export default function ARJobSearch() {
 
   // Калибровка направления
   const calibrateDirection = () => {
-    // Предполагаем, что пользователь направил камеру на север
     alert("Направьте камеру на север и нажмите OK.");
-    setCalibrationAngle(0); // Устанавливаем угол калибровки (север = 0)
+    setCalibrationAngle(0);
     setIsCalibrated(true);
   };
 
@@ -183,6 +181,7 @@ export default function ARJobSearch() {
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
         setArActive(true);
+        console.log("AR mode activated successfully");
         animateMarkers();
       }
     } catch (err) {
@@ -263,7 +262,6 @@ export default function ARJobSearch() {
             const markerHeight = 100;
             const floatOffset = Math.sin(Date.now() / 500) * 5;
 
-            // Рисуем маркер
             ctx.fillStyle =
               job.title === "UX/UI Designer"
                 ? "rgba(59, 130, 246, 0.9)"
@@ -290,7 +288,6 @@ export default function ARJobSearch() {
             ctx.fillText(job.company, x, y + floatOffset);
             ctx.fillText(`${job.salary} | ${job.distance}`, x, y + 20 + floatOffset);
 
-            // Сохраняем границы для кликов
             job.markerBounds = {
               x: x - markerWidth / 2,
               y: y - markerHeight / 2 + floatOffset,
@@ -401,6 +398,7 @@ export default function ARJobSearch() {
           onClick={stopAR}
           size="sm"
           className="absolute top-2 right-2 rounded-full shadow-md bg-red-500 hover:bg-red-600 text-white"
+          style={{ zIndex: 1000 }}
         >
           <X className="h-4 w-4" />
         </Button>
@@ -409,9 +407,16 @@ export default function ARJobSearch() {
           onClick={calibrateDirection}
           size="sm"
           className="absolute top-2 left-2 rounded-full shadow-md bg-blue-500 hover:bg-blue-600 text-white"
+          style={{ zIndex: 1000 }}
         >
           <Compass className="h-4 w-4" />
         </Button>
+
+        {cameraError && arActive && (
+          <div className="absolute top-12 left-2 right-2 text-red-500 text-sm bg-white p-2 rounded-lg shadow-md">
+            {cameraError}
+          </div>
+        )}
 
         {selectedJob && (
           <Card className="absolute bottom-2 left-2 right-2 shadow-lg rounded-xl max-h-[50vh] overflow-y-auto bg-blue-500 text-white">
