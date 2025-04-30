@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { MapPin, Briefcase, DollarSign, X, Check, Camera } from "lucide-react";
-import jobsData from "@/public/vacancies/jobs.json"; // Импортируем JSON
+import jobsData from "@/public/vacancies/jobs.json";
 
 // Define job type
 interface Job {
@@ -26,6 +26,7 @@ interface Job {
 
 // City coordinates
 const cityCoords: { [key: string]: [number, number] } = {
+  Pavlodar: [52.2976, 76.9360],
   Almaty: [43.2389, 76.8897],
   Astana: [51.1694, 71.4491],
   Shymkent: [42.3167, 69.5901],
@@ -65,33 +66,27 @@ const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
   return R * c; // Расстояние в метрах
 };
 
-// Преобразование GPS в экранные координаты
-const getScreenCoordinates = (
+// Проверка, находится ли объект в поле зрения
+const isInFieldOfView = (
   job: Job,
   userLocation: { lat: number; lon: number },
-  deviceOrientation: { alpha: number | null },
-  canvasWidth: number,
-  canvasHeight: number
-): { x: number; y: number; visible: boolean } | null => {
-  if (!userLocation || deviceOrientation.alpha === null) return null;
+  deviceOrientation: { alpha: number | null }
+): boolean => {
+  if (!userLocation || deviceOrientation.alpha === null) return false;
 
   const bearing = calculateBearing(userLocation.lat, userLocation.lon, job.lat, job.lon);
-  const fov = 60; // Угол обзора камеры
+  const fov = 90; // Угол обзора камеры (увеличили до 90 градусов)
   const relativeAngle = (bearing - deviceOrientation.alpha + 360) % 360;
 
-  if (relativeAngle > fov / 2 && relativeAngle < 360 - fov / 2) {
-    return { x: 0, y: 0, visible: false };
-  }
-
-  const normalizedAngle = (relativeAngle - fov / 2) / fov;
-  const x = canvasWidth * (0.5 + normalizedAngle);
-  const y = canvasHeight * 0.3; // Фиксируем в верхней части экрана
-
-  return { x, y, visible: true };
+  const inView = relativeAngle <= fov / 2 || relativeAngle >= 360 - fov / 2;
+  console.log(
+    `Job: ${job.title}, Bearing: ${bearing}, Device Alpha: ${deviceOrientation.alpha}, Relative Angle: ${relativeAngle}, In View: ${inView}`
+  );
+  return inView;
 };
 
 export default function ARJobSearch() {
-  const [city, setCity] = useState<string>("Almaty");
+  const [city, setCity] = useState<string>("Pavlodar");
   const [arActive, setArActive] = useState<boolean>(false);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [showApplyForm, setShowApplyForm] = useState<boolean>(false);
@@ -110,19 +105,22 @@ export default function ARJobSearch() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationFrameIdRef = useRef<number | null>(null);
+  const [alertShown, setAlertShown] = useState<boolean>(false); // Флаг для предотвращения многократных alert
 
   // Инициализация вакансий с динамической дистанцией
-  const [jobs, setJobs] = useState<Job[]>(jobsData.jobs.map(job => ({ ...job, distance: "0 m" })));
+  const [jobs, setJobs] = useState<Job[]>(jobsData.jobs.map((job) => ({ ...job, distance: "0 m" })));
 
   // Получение геолокации
   useEffect(() => {
     if (navigator.geolocation) {
       const watchId = navigator.geolocation.watchPosition(
         (position) => {
-          setUserLocation({
+          const newLocation = {
             lat: position.coords.latitude,
             lon: position.coords.longitude,
-          });
+          };
+          setUserLocation(newLocation);
+          console.log("User Location:", newLocation);
         },
         (error) => {
           console.error("Error getting geolocation:", error);
@@ -131,17 +129,21 @@ export default function ARJobSearch() {
         { enableHighAccuracy: true }
       );
       return () => navigator.geolocation.clearWatch(watchId);
+    } else {
+      setCameraError("Геолокация не поддерживается вашим устройством.");
     }
   }, []);
 
   // Получение ориентации устройства
   useEffect(() => {
     const handleOrientation = (event: DeviceOrientationEvent) => {
-      setDeviceOrientation({
+      const orientation = {
         alpha: event.alpha,
         beta: event.beta,
         gamma: event.gamma,
-      });
+      };
+      setDeviceOrientation(orientation);
+      console.log("Device Orientation:", orientation);
     };
     window.addEventListener("deviceorientation", handleOrientation);
     return () => window.removeEventListener("deviceorientation", handleOrientation);
@@ -197,6 +199,7 @@ export default function ARJobSearch() {
     setArActive(false);
     setSelectedJob(null);
     setCameraError(null);
+    setAlertShown(false);
   };
 
   // Select a job
@@ -225,7 +228,7 @@ export default function ARJobSearch() {
     setFormData({ name: "", email: "" });
   };
 
-  // Animate job markers
+  // Animate markers and check for alert
   const animateMarkers = () => {
     if (!canvasRef.current || !videoRef.current) return;
     const canvas = canvasRef.current;
@@ -241,56 +244,29 @@ export default function ARJobSearch() {
 
       if (userLocation && deviceOrientation.alpha !== null) {
         jobs.forEach((job) => {
-          const coords = getScreenCoordinates(
-            job,
-            userLocation,
-            deviceOrientation,
-            canvas.width,
-            canvas.height
+          const distance = calculateDistance(
+            userLocation.lat,
+            userLocation.lon,
+            job.lat,
+            job.lon
           );
+          console.log(`Distance to ${job.title}: ${distance} meters`);
 
-          if (coords && coords.visible) {
-            const { x, y } = coords;
-            const markerWidth = 160;
-            const markerHeight = 100;
-            const floatOffset = Math.sin(Date.now() / 500) * 5;
-
-            // Рисуем маркер
-            ctx.fillStyle =
-              job.title === "UX/UI Designer"
-                ? "rgba(59, 130, 246, 0.9)"
-                : "rgba(255, 255, 255, 0.9)";
-            ctx.shadowColor = "rgba(0, 0, 0, 0.3)";
-            ctx.shadowBlur = 10;
-            ctx.beginPath();
-            ctx.roundRect(
-              x - markerWidth / 2,
-              y - markerHeight / 2 + floatOffset,
-              markerWidth,
-              markerHeight,
-              12
-            );
-            ctx.fill();
-            ctx.shadowBlur = 0;
-
-            ctx.fillStyle = job.title === "UX/UI Designer" ? "#ffffff" : "#1e3a8a";
-            ctx.font = "bold 16px Roboto, sans-serif";
-            ctx.textAlign = "center";
-            ctx.fillText(job.title, x, y - 20 + floatOffset);
-            ctx.fillStyle = "#4b5563";
-            ctx.font = "14px Roboto, sans-serif";
-           ctx.fillText(job.company, x, y + floatOffset);
-            ctx.fillText(`${job.salary} | ${job.distance}`, x, y + 20 + floatOffset);
-
-            // Сохраняем границы для кликов
-            job.markerBounds = {
-              x: x - markerWidth / 2,
-              y: y - markerHeight / 2 + floatOffset,
-              width: markerWidth,
-              height: markerHeight,
-            };
+          // Проверяем, находится ли пользователь в радиусе 50 метров
+          if (distance <= 50) {
+            // Проверяем, наводит ли пользователь камеру на дом
+            if (isInFieldOfView(job, userLocation, deviceOrientation) && !alertShown) {
+              alert(
+                `Вакансия: ${job.title}\nКомпания: ${job.company}\nЗарплата: ${job.salary}\nРасстояние: ${job.distance}`
+              );
+              setAlertShown(true); // Предотвращаем повторный alert
+            }
+          } else {
+            setAlertShown(false); // Сбрасываем флаг, если вышли из радиуса
           }
         });
+      } else {
+        console.log("Waiting for userLocation or deviceOrientation...");
       }
 
       animationFrameIdRef.current = requestAnimationFrame(draw);
@@ -353,6 +329,7 @@ export default function ARJobSearch() {
                 value={city}
                 onChange={handleCityChange}
               >
+                <option value="Pavlodar">Павлодар</option>
                 <option value="Almaty">Алматы</option>
                 <option value="Astana">Астана</option>
                 <option value="Shymkent">Шымкент</option>
@@ -507,7 +484,7 @@ export default function ARJobSearch() {
         <Card className="mx-4 shadow-md rounded-xl bg-white dark:bg-gray-800">
           <div className="p-4">
             <h2 className="text-lg font-semibold">
-              Вакансии в {city === "Almaty" ? "Алматы" : city === "Astana" ? "Астане" : "Шымкенте"}
+              Вакансии в {city === "Pavlodar" ? "Павлодаре" : city === "Almaty" ? "Алматы" : city === "Astana" ? "Астане" : "Шымкенте"}
             </h2>
           </div>
           <CardContent>
