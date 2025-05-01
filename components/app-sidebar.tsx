@@ -23,6 +23,7 @@ import {
   BarChart2,
   Laptop,
   Camera,
+  Map,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -137,6 +138,14 @@ export function AppSidebar() {
               <Link href="/ar-job-search">
                 <Camera className="h-5 w-5" />
                 <span>AR Job Search</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild isActive={isActive("/ar-job-search")} className="hover:bg-primary/5">
+              <Link href="/map">
+                <Map className="h-5 w-5" />
+                <span>Map</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>

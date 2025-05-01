@@ -6,10 +6,9 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Play, PhoneCall, PhoneOff, Upload } from 'lucide-react';
 import { useXP } from './xp-provider';
 import { parsePDF } from '@/lib/pdfParser';
-import { generateQuestions } from '@/lib/deepseek';
 import Vapi from '@vapi-ai/web';
 import Image from 'next/image';
-import { VAPI_API_KEY } from '@/constants/constants';
+import { VAPI_API_KEY, GOOGLE_API_KEY } from '@/constants/constants';
 
 export default function InterviewPrep() {
   const [resumeText, setResumeText] = useState('');
@@ -22,6 +21,7 @@ export default function InterviewPrep() {
   const [confidenceScore, setConfidenceScore] = useState(60);
   const [loading, setLoading] = useState(false);
   const [callActive, setCallActive] = useState(false);
+  const [isAiSpeaking, setIsAiSpeaking] = useState(false);
   const { addXP } = useXP();
   const [vapiInstance, setVapiInstance] = useState(null);
   const fileInputRef = useRef(null);
@@ -45,8 +45,7 @@ export default function InterviewPrep() {
 
     const stopCamera = () => {
       if (stream) {
-        const tracks = stream.getTracks();
-        tracks.forEach((track) => track.stop());
+        stream.getTracks().forEach((track) => track.stop());
       }
     };
 
@@ -54,43 +53,36 @@ export default function InterviewPrep() {
       startCamera();
     }
 
-    return () => {
-      stopCamera();
-    };
+    return stopCamera;
   }, [isInterviewStarted]);
 
   // Инициализация Vapi
   useEffect(() => {
-    try {
-      const instance = new Vapi(VAPI_API_KEY);
-      setVapiInstance(instance);
-      console.log('Vapi инициализирован:', instance);
-    } catch (error) {
-      console.error('Ошибка инициализации Vapi:', error);
-      alert('Не удалось инициализировать голосовой интерфейс. Проверьте API-ключ.');
-    }
+    const instance = new Vapi(VAPI_API_KEY);
+    setVapiInstance(instance);
+    console.log('Vapi инициализирован:', instance);
 
     return () => {
-      if (vapiInstance && callActive) {
+      if (instance && instance.started) {
         try {
-          vapiInstance.stop();
+          instance.stop();
           console.log('Звонок остановлен при размонтировании');
         } catch (err) {
           console.error('Ошибка при остановке звонка при размонтировании:', err);
         }
       }
     };
-  }, [callActive]);
+  }, []);
 
   // Парсинг оценок для уверенности
   const parseScore = (value) => {
     const lowerValue = value.toLowerCase();
-    if (lowerValue.includes('высок')) return 80; // Высокий: +80%
-    if (lowerValue.includes('средн')) return 50; // Средний: +50%
-    if (lowerValue.includes('низк')) return 20; // Низкий: +20%
+    if (lowerValue.includes('высок')) return 80;
+    if (lowerValue.includes('средн')) return 50;
+    if (lowerValue.includes('низк')) return 20;
     const numericMatch = value.match(/(\d+)%?/);
     if (numericMatch) return parseInt(numericMatch[1], 10);
-    return 50; // По умолчанию средний
+    return 50;
   };
 
   // Получение текстового уровня уверенности
@@ -98,6 +90,70 @@ export default function InterviewPrep() {
     if (score >= 80) return 'Высокий';
     if (score >= 50) return 'Средний';
     return 'Низкий';
+  };
+
+  // Генерация вопросов через Gemini API
+  const generateQuestions = async (resumeText) => {
+    try {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GOOGLE_API_KEY}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [
+                  {
+                    text: `You are a professional HR specialist tasked with generating interview questions based on a candidate's resume. Generate 5 relevant, specific, and professional interview questions tailored to the candidate's skills, experience, and background as provided in the resume text below. The questions should be designed to assess the candidate's qualifications and fit for a role that aligns with their resume. Ensure the questions are concise, clear, and encourage detailed responses. Return only the list of questions, numbered, without additional explanations or markdown formatting.
+
+                    **Resume Text**:
+                    ${resumeText}
+
+                    Example:
+                    1. Can you describe a specific project where you utilized your JavaScript skills to solve a complex problem?
+                    2. How have you contributed to improving team collaboration in past roles?
+                    3. What strategies do you use to stay updated with the latest industry trends?
+                    4. Can you provide an example of a time you had to adapt to a significant change in a project?
+                    5. How do you prioritize tasks when working on multiple projects with tight deadlines?
+
+                    **Now, generate 5 interview questions based on the provided resume text.**`,
+                  },
+                ],
+              },
+            ],
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Gemini API failed: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      if (
+        !data.candidates ||
+        !Array.isArray(data.candidates) ||
+        data.candidates.length === 0
+      ) {
+        throw new Error('No valid candidates in Gemini response');
+      }
+
+      const content = data.candidates[0].content.parts[0].text.trim();
+      const questionsArray = content
+        .split(/\n(?=\d+\.\s)/)
+        .map((q) => q.replace(/^\d+\.\s*/, '').trim())
+        .filter((q) => q.length > 0 && q.match(/^\w/));
+      if (questionsArray.length === 0) {
+        throw new Error('No valid questions parsed from Gemini response');
+      }
+      return questionsArray;
+    } catch (error) {
+      console.error('Ошибка генерации вопросов:', error);
+      throw new Error('Failed to generate interview questions');
+    }
   };
 
   // Обработка загрузки резюме
@@ -150,7 +206,7 @@ export default function InterviewPrep() {
 
     const assistantOptions = {
       name: 'Interview Assistant',
-      firstMessage: questions[0],
+      firstMessage: 'Hello! I’m your interview assistant. Let’s get started with our practice interview. Are you ready?',
       transcriber: {
         provider: 'deepgram',
         model: 'nova-2',
@@ -162,14 +218,16 @@ export default function InterviewPrep() {
       },
       model: {
         provider: 'openai',
-        model: 'gpt-4',
+        model: 'gpt-4o',
         messages: [
           {
             role: 'system',
             content: `You are an interview preparation assistant.
 
-Your task is to ask questions from the list and evaluate the candidate's answers. List of questions:
+Your task is to conduct a practice interview by asking questions from the provided list and evaluating the candidate's answers. List of questions:
 ${questions.join('\n\n')}
+
+Start the conversation with a greeting: "Hello! I’m your interview assistant. Let’s get started with our practice interview. Are you ready?" After the candidate responds (e.g., says "yes" or anything else), ask the first question from the list.
 
 After each answer, evaluate it according to the criteria:
 3. Suggestions: specific recommendations on what can be improved in the answer (1-2 sentences).
@@ -179,7 +237,7 @@ Suggestions: [recommendations].
 
 Talk like you're a real human. Use a friendly tone. Be professional and polite. Use short sentences.
 
-Ask questions in turn. After the answer, give feedback in the specified format and move on to the next question. If there are no more questions, end the interview by saying, "Thank you for completing the interview! Would you like to start over?"
+Ask questions in sequence. After the answer, give feedback in the specified format and move on to the next question. If there are no more questions, end the interview by saying, "Thank you for completing the interview! Would you like to start over?"
 
 Be professional but friendly. Use short sentences. Answer in English.`,
           },
@@ -196,15 +254,26 @@ Be professional but friendly. Use short sentences. Answer in English.`,
     vapiInstance.on('call-end', () => {
       console.log('Звонок завершён');
       setCallActive(false);
+      setIsAiSpeaking(false);
       endInterview();
+    });
+
+    vapiInstance.on('speech-start', () => {
+      console.log('AI начал говорить');
+      setIsAiSpeaking(true);
+    });
+
+    vapiInstance.on('speech-end', () => {
+      console.log('AI закончил говорить');
+      setIsAiSpeaking(false);
     });
 
     vapiInstance.on('message', (message) => {
       console.log('Сообщение Vapi:', message);
-      if (message.type === 'transcript' && message.role === 'assistant') {
+      if (message.type === 'transcript' && message.role === 'assistant' && message.transcriptType === 'final') {
         const transcript = message.transcript;
         if (transcript.toLowerCase().includes('ясность') || transcript.toLowerCase().includes('специфичность')) {
-          setFeedback(prev => [...prev, transcript]);
+          setFeedback((prev) => [...prev, transcript]);
 
           const clarityMatch = transcript.match(/Ясность:\s*([^\.]+)/i);
           const specificityMatch = transcript.match(/Специфичность:\s*([^\.]+)/i);
@@ -214,18 +283,19 @@ Be professional but friendly. Use short sentences. Answer in English.`,
             const clarityScore = parseScore(clarityMatch[1]);
             const specificityScore = parseScore(specificityMatch[1]);
             const confidenceDelta = (clarityScore + specificityScore) / 2;
-            setConfidenceScore(prev => Math.min(100, Math.max(0, prev + confidenceDelta / 10)));
+            setConfidenceScore((prev) => Math.min(100, Math.max(0, prev + confidenceDelta / 10)));
           }
 
           if (suggestionsMatch) {
             const suggestion = suggestionsMatch[1].trim();
-            setImprovementPoints(prev => [...prev, suggestion]);
+            setImprovementPoints((prev) => [...prev, suggestion]);
           }
 
           addXP(5);
         }
         if (transcript.includes('Спасибо за прохождение интервью!')) {
           setCallActive(false);
+          setIsAiSpeaking(false);
           endInterview();
         }
       }
@@ -235,13 +305,25 @@ Be professional but friendly. Use short sentences. Answer in English.`,
       console.log('Транскрипт пользователя:', message);
     });
 
+    vapiInstance.on('error', (error) => {
+      console.error('Vapi error:', error);
+    });
+
     try {
       vapiInstance.start(assistantOptions);
-      setCurrentQuestionIndex(1);
+      setCurrentQuestionIndex(0);
       addXP(10);
     } catch (error) {
-      console.error('Ошибка запуска звонка:', error);
-      alert('Не удалось начать голосовое интервью. Попробуйте снова.');
+      console.error('Ошибка запуска звонка:', {
+        message: error.message,
+        details: error,
+        assistantOptions,
+      });
+      alert(
+        `Не удалось начать голосовое интервью: ${
+          error.message || 'Неизвестная ошибка'
+        }. Проверьте Vapi API ключ и конфигурацию модели.`
+      );
       setCallActive(false);
       setIsInterviewStarted(false);
     }
@@ -256,12 +338,11 @@ Be professional but friendly. Use short sentences. Answer in English.`,
       } catch (err) {
         console.error('Ошибка при остановке звонка:', err);
       }
-    } else {
-      console.log('Vapi не инициализирован или звонок не активен');
     }
 
     setCallActive(false);
     setIsInterviewStarted(false);
+    setIsAiSpeaking(false);
     setQuestions([]);
     setCurrentQuestionIndex(0);
     setFeedback([]);
@@ -297,6 +378,33 @@ Be professional but friendly. Use short sentences. Answer in English.`,
             overflow: hidden;
             box-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
           }
+          .waveform {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.5);
+          }
+          .waveform-bar {
+            width: 4px;
+            height: 10px;
+            background: #00ffff;
+            margin: 0 2px;
+            animation: waveform 0.5s infinite alternate;
+          }
+          .waveform-bar:nth-child(2) {
+            animation-delay: 0.1s;
+          }
+          .waveform-bar:nth-child(3) {
+            animation-delay: 0.2s;
+          }
+          .waveform-bar:nth-child(4) {
+            animation-delay: 0.3s;
+          }
           .call-status {
             font-size: 1.25rem;
             font-weight: bold;
@@ -317,6 +425,10 @@ Be professional but friendly. Use short sentences. Answer in English.`,
           @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
+          }
+          @keyframes waveform {
+            0% { transform: scaleY(1); }
+            100% { transform: scaleY(2); }
           }
         `}
       </style>
@@ -388,6 +500,14 @@ Be professional but friendly. Use short sentences. Answer in English.`,
                         fill
                         style={{ objectFit: 'cover' }}
                       />
+                      {isAiSpeaking && (
+                        <div className="waveform">
+                          <div className="waveform-bar"></div>
+                          <div className="waveform-bar"></div>
+                          <div className="waveform-bar"></div>
+                          <div className="waveform-bar"></div>
+                        </div>
+                      )}
                     </div>
                     <div className="avatar-container">
                       <video
