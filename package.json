@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@belivvr/aframe-react": "^0.4.2",
     "@emotion/is-prop-valid": "latest",
     "@hookform/resolvers": "^3.9.1",
     "@radix-ui/react-accordion": "1.2.2",
@@ -39,6 +40,8 @@
     "@radix-ui/react-toggle-group": "1.1.1",
     "@radix-ui/react-tooltip": "1.1.6",
     "@vapi-ai/web": "^2.2.7",
+    "aframe": "^1.7.1",
+    "aframe-react": "^4.4.0",
     "autoprefixer": "^10.4.20",
     "axios": "^1.9.0",
     "canvas-confetti": "latest",

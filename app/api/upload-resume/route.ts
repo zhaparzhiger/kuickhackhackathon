@@ -14,9 +14,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
     }
 
-    if (!(file instanceof File)) {
-      return NextResponse.json({ error: "Invalid file type" }, { status: 400 });
-    }
+   
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 

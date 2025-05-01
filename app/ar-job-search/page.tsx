@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Briefcase, DollarSign, X, Check, Camera, ArrowLeft, ArrowRight } from "lucide-react";
+import { MapPin, Briefcase, DollarSign, X, Check, Camera, Compass } from "lucide-react";
 import jobsData from "@/public/vacancies/jobs.json";
 
 // Define job type
@@ -21,8 +21,7 @@ interface Job {
   distance: string;
   type: string;
   tags: string[];
-  bearing?: number;
-  inRange?: boolean;
+  markerBounds?: { x: number; y: number; width: number; height: number };
 }
 
 // City coordinates
@@ -31,23 +30,6 @@ const cityCoords: { [key: string]: [number, number] } = {
   Almaty: [43.2389, 76.8897],
   Astana: [51.1694, 71.4491],
   Shymkent: [42.3167, 69.5901],
-};
-
-// Вычисление расстояния между двумя точками
-const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
-  const R = 6371e3; // Радиус Земли в метрах
-  const toRadians = (deg: number) => (deg * Math.PI) / 180;
-
-  const φ1 = toRadians(lat1);
-  const φ2 = toRadians(lat2);
-  const Δφ = toRadians(lat2 - lat1);
-  const Δλ = toRadians(lon2 - lon1);
-
-  const a =
-    Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-    Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c; // Расстояние в метрах
 };
 
 // Вычисление азимута между двумя точками
@@ -67,18 +49,55 @@ const calculateBearing = (lat1: number, lon1: number, lat2: number, lon2: number
   return (bearing + 360) % 360;
 };
 
-// Простая проверка направления (упрощенная модель)
-const getDirectionIndicator = (bearing: number): { icon: JSX.Element; text: string } => {
-  // Упрощенная модель: делим направления на 4 сектора
-  if (bearing >= 315 || bearing < 45) {
-    return { icon: <ArrowLeft className="h-6 w-6" />, text: "Поверните налево" };
-  } else if (bearing >= 45 && bearing < 135) {
-    return { icon: <ArrowRight className="h-6 w-6" />, text: "Прямо" };
-  } else if (bearing >= 135 && bearing < 225) {
-    return { icon: <ArrowRight className="h-6 w-6" />, text: "Поверните направо" };
-  } else {
-    return { icon: <ArrowLeft className="h-6 w-6" />, text: "Поверните назад" };
+// Вычисление расстояния между двумя точками
+const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+  const R = 6371e3; // Радиус Земли в метрах
+  const toRadians = (deg: number) => (deg * Math.PI) / 180;
+
+  const φ1 = toRadians(lat1);
+  const φ2 = toRadians(lat2);
+  const Δφ = toRadians(lat2 - lat1);
+  const Δλ = toRadians(lon2 - lon1);
+
+  const a =
+    Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+    Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c; // Расстояние в метрах
+};
+
+// Преобразование геолокации в экранные координаты
+const getScreenCoordinates = (
+  job: Job,
+  userLocation: { lat: number; lon: number },
+  calibrationAngle: number,
+  canvasWidth: number,
+  canvasHeight: number
+): { x: number; y: number; visible: boolean } | null => {
+  if (!userLocation) return null;
+
+  const bearing = calculateBearing(userLocation.lat, userLocation.lon, job.lat, job.lon);
+  const fov = 90;
+  const relativeAngle = (bearing - calibrationAngle + 360) % 360;
+
+  const distance = calculateDistance(userLocation.lat, userLocation.lon, job.lat, job.lon);
+  if (distance > 500) {
+    return { x: 0, y: 0, visible: false };
   }
+
+  if (relativeAngle > fov / 2 && relativeAngle < 360 - fov / 2) {
+    return { x: 0, y: 0, visible: false };
+  }
+
+  const normalizedAngle = (relativeAngle - fov / 2) / fov;
+  const x = canvasWidth * (0.5 + normalizedAngle);
+  const y = canvasHeight * 0.3;
+
+  console.log(
+    `Job: ${job.title}, Distance: ${distance}m, Bearing: ${bearing}, Calibration Angle: ${calibrationAngle}, Relative Angle: ${relativeAngle}, Screen X: ${x}`
+  );
+
+  return { x, y, visible: true };
 };
 
 export default function ARJobSearch() {
@@ -93,17 +112,14 @@ export default function ARJobSearch() {
   const [applicationSubmitted, setApplicationSubmitted] = useState<boolean>(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [userLocation, setUserLocation] = useState<{ lat: number; lon: number } | null>(null);
+  const [calibrationAngle, setCalibrationAngle] = useState<number>(0);
+  const [isCalibrated, setIsCalibrated] = useState<boolean>(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const animationFrameIdRef = useRef<number | null>(null);
 
-  // Инициализация вакансий
-  const [jobs, setJobs] = useState<Job[]>(
-    jobsData.jobs.map((job) => ({
-      ...job,
-      distance: "0 m",
-      inRange: false,
-      bearing: 0,
-    }))
-  );
+  // Инициализация вакансий с динамической дистанцией
+  const [jobs, setJobs] = useState<Job[]>(jobsData.jobs.map((job) => ({ ...job, distance: "0 m" })));
 
   // Получение геолокации
   useEffect(() => {
@@ -129,33 +145,26 @@ export default function ARJobSearch() {
     }
   }, []);
 
-  // Обновление расстояний и направлений
+  // Обновление дистанции при изменении местоположения
   useEffect(() => {
     if (userLocation) {
       setJobs((prevJobs) =>
-        prevJobs.map((job) => {
-          const distance = calculateDistance(
-            userLocation.lat,
-            userLocation.lon,
-            job.lat,
-            job.lon
-          );
-          const bearing = calculateBearing(
-            userLocation.lat,
-            userLocation.lon,
-            job.lat,
-            job.lon
-          );
-          return {
-            ...job,
-            distance: `${Math.round(distance)} m`,
-            inRange: distance <= 500, // Радиус действия 500 метров
-            bearing,
-          };
-        })
+        prevJobs.map((job) => ({
+          ...job,
+          distance: `${Math.round(
+            calculateDistance(userLocation.lat, userLocation.lon, job.lat, job.lon)
+          )} m`,
+        }))
       );
     }
   }, [userLocation]);
+
+  // Калибровка направления
+  const calibrateDirection = () => {
+    alert("Направьте камеру на север и нажмите OK.");
+    setCalibrationAngle(0);
+    setIsCalibrated(true);
+  };
 
   // Handle city change
   const handleCityChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -173,6 +182,7 @@ export default function ARJobSearch() {
         await videoRef.current.play();
         setArActive(true);
         console.log("AR mode activated successfully");
+        animateMarkers();
       }
     } catch (err) {
       console.error("Error accessing camera:", err);
@@ -187,9 +197,13 @@ export default function ARJobSearch() {
       tracks.forEach((track) => track.stop());
       videoRef.current.srcObject = null;
     }
+    if (animationFrameIdRef.current) {
+      cancelAnimationFrame(animationFrameIdRef.current);
+    }
     setArActive(false);
     setSelectedJob(null);
     setCameraError(null);
+    setIsCalibrated(false);
   };
 
   // Select a job
@@ -217,6 +231,113 @@ export default function ARJobSearch() {
     setSelectedJob(null);
     setFormData({ name: "", email: "" });
   };
+
+  // Animate markers
+  const animateMarkers = () => {
+    if (!canvasRef.current || !videoRef.current) return;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    canvas.width = videoRef.current.videoWidth;
+    canvas.height = videoRef.current.videoHeight;
+
+    const draw = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(videoRef.current!, 0, 0, canvas.width, canvas.height);
+
+      if (userLocation && isCalibrated) {
+        jobs.forEach((job) => {
+          const coords = getScreenCoordinates(
+            job,
+            userLocation,
+            calibrationAngle,
+            canvas.width,
+            canvas.height
+          );
+
+          if (coords && coords.visible) {
+            const { x, y } = coords;
+            const markerWidth = 160;
+            const markerHeight = 100;
+            const floatOffset = Math.sin(Date.now() / 500) * 5;
+
+            ctx.fillStyle =
+              job.title === "UX/UI Designer"
+                ? "rgba(59, 130, 246, 0.9)"
+                : "rgba(255, 255, 255, 0.9)";
+            ctx.shadowColor = "rgba(0, 0, 0, 0.3)";
+            ctx.shadowBlur = 10;
+            ctx.beginPath();
+            ctx.roundRect(
+              x - markerWidth / 2,
+              y - markerHeight / 2 + floatOffset,
+              markerWidth,
+              markerHeight,
+              12
+            );
+            ctx.fill();
+            ctx.shadowBlur = 0;
+
+            ctx.fillStyle = job.title === "UX/UI Designer" ? "#ffffff" : "#1e3a8a";
+            ctx.font = "bold 16px Roboto, sans-serif";
+            ctx.textAlign = "center";
+            ctx.fillText(job.title, x, y - 20 + floatOffset);
+            ctx.fillStyle = "#4b5563";
+            ctx.font = "14px Roboto, sans-serif";
+            ctx.fillText(job.company, x, y + floatOffset);
+            ctx.fillText(`${job.salary} | ${job.distance}`, x, y + 20 + floatOffset);
+
+            job.markerBounds = {
+              x: x - markerWidth / 2,
+              y: y - markerHeight / 2 + floatOffset,
+              width: markerWidth,
+              height: markerHeight,
+            };
+          }
+        });
+      } else {
+        console.log("Waiting for userLocation or calibration...");
+      }
+
+      animationFrameIdRef.current = requestAnimationFrame(draw);
+    };
+
+    draw();
+  };
+
+  // Handle canvas click
+  const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!canvasRef.current) return;
+
+    const rect = canvasRef.current.getBoundingClientRect();
+    const scaleX = canvasRef.current.width / rect.width;
+    const scaleY = canvasRef.current.height / rect.height;
+    const x = (e.clientX - rect.left) * scaleX;
+    const y = (e.clientY - rect.top) * scaleY;
+
+    const clickedJob = jobs.find((job) => {
+      const bounds = job.markerBounds;
+      if (!bounds) return false;
+      return (
+        x >= bounds.x &&
+        x <= bounds.x + bounds.width &&
+        y >= bounds.y &&
+        y <= bounds.y + bounds.height
+      );
+    });
+
+    if (clickedJob) {
+      selectJob(clickedJob);
+    }
+  };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      stopAR();
+    };
+  }, []);
 
   return (
     <div className="w-full min-h-screen bg-gray-100 text-gray-900 dark:bg-gray-900 dark:text-white">
@@ -268,6 +389,11 @@ export default function ARJobSearch() {
           muted
           className="absolute top-0 left-0 w-full h-full object-cover rounded-xl shadow-lg"
         />
+        <canvas
+          ref={canvasRef}
+          className="absolute top-0 left-0 w-full h-full"
+          onClick={handleCanvasClick}
+        />
         <Button
           onClick={stopAR}
           size="sm"
@@ -277,58 +403,18 @@ export default function ARJobSearch() {
           <X className="h-4 w-4" />
         </Button>
 
+        <Button
+          onClick={calibrateDirection}
+          size="sm"
+          className="absolute top-2 left-2 rounded-full shadow-md bg-blue-500 hover:bg-blue-600 text-white"
+          style={{ zIndex: 1000 }}
+        >
+          <Compass className="h-4 w-4" />
+        </Button>
+
         {cameraError && arActive && (
           <div className="absolute top-12 left-2 right-2 text-red-500 text-sm bg-white p-2 rounded-lg shadow-md">
             {cameraError}
-          </div>
-        )}
-
-        {/* Отображение вакансий в радиусе действия */}
-        {arActive && userLocation && (
-          <div className="absolute bottom-2 left-2 right-2 space-y-2 max-h-[50vh] overflow-y-auto">
-            {jobs.map((job) => {
-              if (job.inRange) {
-                return (
-                  <Card
-                    key={job.id}
-                    className="shadow-lg rounded-xl bg-blue-500 text-white"
-                    onClick={() => selectJob(job)}
-                  >
-                    <CardContent className="p-3">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <h2 className="text-lg font-semibold">{job.title}</h2>
-                          <p className="text-sm opacity-90">{job.company}</p>
-                        </div>
-                        <Badge className="bg-blue-700 text-white shadow-sm">
-                          {job.distance}
-                        </Badge>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              } else {
-                // Показываем стрелку направления для вакансий вне радиуса
-                const direction = getDirectionIndicator(job.bearing || 0);
-                return (
-                  <Card
-                    key={job.id}
-                    className="shadow-lg rounded-xl bg-gray-200 text-gray-900"
-                  >
-                    <CardContent className="p-3 flex items-center justify-between">
-                      <div>
-                        <h2 className="text-sm font-semibold">{job.title}</h2>
-                        <p className="text-xs">{job.distance}</p>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <span className="text-sm">{direction.text}</span>
-                        {direction.icon}
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              }
-            })}
           </div>
         )}
 
@@ -453,7 +539,9 @@ export default function ARJobSearch() {
               {jobs.map((job) => (
                 <div
                   key={job.id}
-                  className="p-3 border rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 cursor-pointer transition-colors"
+                  className={`p-3 border rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 cursor-pointer transition-colors ${
+                    job.title === "UX/UI Designer" ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20" : ""
+                  }`}
                   onClick={() => selectJob(job)}
                 >
                   <div className="flex justify-between items-start mb-2">
@@ -503,6 +591,27 @@ export default function ARJobSearch() {
           top: 0;
           left: 0;
           border-radius: 12px;
+        }
+        canvas {
+          width: 100%;
+          height: 100%;
+          position: absolute;
+          top: 0;
+          left: 0;
+          border-radius: 12px;
+        }
+        .animate-slide-up {
+          animation: slide-up 0.3s ease-out;
+        }
+        @keyframes slide-up {
+          from {
+            transform: translateY(20px);
+            opacity: 0;
+          }
+          to {
+            transform: translateY(0);
+            opacity: 1;
+          }
         }
       `}</style>
     </div>

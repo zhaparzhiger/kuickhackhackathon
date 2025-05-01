@@ -11,6 +11,8 @@ import { useXP } from "./xp-provider"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
+const GOOGLE_API_KEY = "AIzaSyCLIB1yGy-lyyXbyWr5mebsmC46GCHx6Dk"
+
 export function ResumeBuilderNew() {
   const [activeTab, setActiveTab] = useState("personal")
   const [personalInfo, setPersonalInfo] = useState({
@@ -87,7 +89,7 @@ export function ResumeBuilderNew() {
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false)
 
   // DocRaptor API key management
-  const [apiKey, setApiKey] = useState("bW0tzZwcU7kcV9URCvFf")
+  const [apiKey, setApiKey] = useState("0aC8KzAQ2NnNEwiiBQ8A")
   const [hasKey, setHasKey] = useState(false)
   const [isKeyLoading, setIsKeyLoading] = useState(false)
   const [keyError, setKeyError] = useState("")
@@ -224,9 +226,319 @@ export function ResumeBuilderNew() {
     }
   }, [])
 
-  // Mock AI response function for the mini-chat
-  const generateAIResponse = (prompt) => {
-    // Simulate AI processing delay
+  // Generate ATS-friendly resume HTML using Gemini
+  const generateResumeWithGemini = async (prompt) => {
+    setIsChatLoading(true)
+    try {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GOOGLE_API_KEY}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [
+                  {
+                    text: `You are a professional resume writer. Generate an ATS-friendly HTML resume based on the following prompt. The resume should be visually appealing yet simple, clean, and optimized for Applicant Tracking Systems (ATS) with no complex formatting, tables, or graphics. Use a professional font (Arial, Helvetica, sans-serif), clear section headings, and a logical structure. Include minimal CSS for readability (e.g., font sizes, margins, padding, and subtle borders) while ensuring ATS compatibility. If the prompt lacks details, make reasonable assumptions to fill in missing information (e.g., company names, dates, locations) based on the context provided, ensuring a complete and professional resume.
+
+                    **Prompt**: ${prompt}
+
+                    **Instructions**:
+                    - Return only the plain HTML content of the resume, without markdown, backticks, or additional explanations.
+                    - Structure the resume with sections: Contact Information, Professional Summary, Experience, Education, Skills, and Projects (if applicable).
+                    - Use semantic HTML (e.g., <h1>, <h2>, <ul>, <li>) for clarity.
+                    - Format dates as "MM/YYYY" or "Present" for current roles.
+                    - Keep the tone professional and avoid phrases that suggest AI generation (e.g., "As an AI").
+                    - For missing details, assume a typical candidate profile for the role (e.g., a software engineer with relevant skills, experience, and education). Use generic but plausible placeholders (e.g., "Tech Solutions Inc." for company, "New York, NY" for location).
+                    - Include at least two experience entries, one education entry, and relevant skills unless specified otherwise.
+                    - Ensure the resume is visually appealing with consistent spacing, clear hierarchy, and subtle styling (e.g., borders under section headings, proper bullet point alignment).
+
+                    Example:
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                      <meta charset="utf-8">
+                      <title>Resume</title>
+                      <style>
+                        body {
+                          font-family: Arial, Helvetica, sans-serif;
+                          margin: 0;
+                          padding: 0.5in;
+                          line-height: 1.5;
+                          color: #333;
+                        }
+                        .container {
+                          max-width: 8.5in;
+                          margin: 0 auto;
+                        }
+                        h1 {
+                          font-size: 24pt;
+                          text-align: center;
+                          margin: 0 0 10px 0;
+                        }
+                        .contact-info {
+                          text-align: center;
+                          font-size: 10pt;
+                          margin-bottom: 20px;
+                        }
+                        h2 {
+                          font-size: 14pt;
+                          border-bottom: 1px solid #ccc;
+                          padding-bottom: 5px;
+                          margin: 20px 0 10px 0;
+                        }
+                        h3 {
+                          font-size: 12pt;
+                          margin: 10px 0 5px 0;
+                        }
+                        p, li {
+                          font-size: 10pt;
+                          margin: 5px 0;
+                        }
+                        ul {
+                          margin: 10px 0;
+                          padding-left: 20px;
+                        }
+                        li {
+                          margin-bottom: 5px;
+                        }
+                      </style>
+                    </head>
+                    <body>
+                      <div class="container">
+                        <h1>John Doe</h1>
+                        <div class="contact-info">
+                          Email: john.doe@example.com | Phone: +1 (555) 123-4567 | Location: New York, NY | LinkedIn: linkedin.com/in/johndoe
+                        </div>
+                        <h2>Professional Summary</h2>
+                        <p>Experienced Software Engineer with 5 years of expertise in full-stack development...</p>
+                        <h2>Experience</h2>
+                        <h3>Software Engineer - TechCorp</h3>
+                        <p>New York, NY | 01/2020 - Present</p>
+                        <ul>
+                          <li>Developed scalable REST APIs using Node.js...</li>
+                        </ul>
+                        <h3>Junior Developer - Innovate Solutions</h3>
+                        <p>Seattle, WA | 06/2018 - 12/2019</p>
+                        <ul>
+                          <li>Built responsive front-end interfaces...</li>
+                        </ul>
+                        <h2>Education</h2>
+                        <h3>Bachelor of Science in Computer Science - NYU</h3>
+                        <p>New York, NY | 09/2014 - 05/2018</p>
+                        <h2>Skills</h2>
+                        <ul>
+                          <li>JavaScript, TypeScript, Python</li>
+                          <li>React, Node.js, Express</li>
+                        </ul>
+                        <h2>Projects</h2>
+                        <h3>Task Manager App</h3>
+                        <p>Developed a cross-platform mobile app...</p>
+                        <ul>
+                          <li>Integrated Firebase for real-time data...</li>
+                        </ul>
+                      </div>
+                    </body>
+                    </html>
+
+                    **Now, generate the ATS-friendly HTML resume based on the prompt provided above.**`
+                  },
+                ],
+              },
+            ],
+          }),
+        }
+      )
+
+      if (!response.ok) {
+        throw new Error(`Gemini API failed: ${response.statusText}`)
+      }
+
+      const data = await response.json()
+      if (!data.candidates || !Array.isArray(data.candidates) || data.candidates.length === 0) {
+        throw new Error("No valid candidates in Gemini response")
+      }
+
+      const htmlContent = data.candidates[0].content.parts[0].text.trim()
+      return htmlContent
+    } catch (err) {
+      console.error("Error generating resume with Gemini:", err)
+      throw new Error("Failed to generate resume. Please try again.")
+    } finally {
+      setIsChatLoading(false)
+    }
+  }
+
+  // Generate PDF from Gemini-generated HTML using DocRaptor
+  const generatePdfFromGemini = async (htmlContent) => {
+    try {
+      setIsGeneratingPdf(true)
+      const docRaptorApiKey = apiKey || localStorage.getItem("docraptor_api_key")
+
+      if (!docRaptorApiKey) {
+        throw new Error("Please set your DocRaptor API key first")
+      }
+
+      const response = await fetch("https://api.docraptor.com/docs", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          user_credentials: docRaptorApiKey,
+          doc: {
+            document_content: htmlContent,
+            type: "pdf",
+            test: false,
+            prince_options: {
+              media: "screen",
+            },
+          },
+        }),
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`DocRaptor API error: ${errorText}`)
+      }
+
+      const pdfBlob = await response.blob()
+      const url = URL.createObjectURL(pdfBlob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = personalInfo.name
+        ? personalInfo.name.replace(/\s+/g, "_").toLowerCase() + "_resume.pdf"
+        : "resume.pdf"
+      document.body.appendChild(a)
+      a.click()
+
+      setTimeout(() => {
+        URL.revokeObjectURL(url)
+        document.body.removeChild(a)
+      }, 100)
+
+      addXP(50)
+    } catch (error) {
+      console.error("Error generating PDF:", error)
+      throw new Error(`Failed to generate PDF: ${error.message}`)
+    } finally {
+      setIsGeneratingPdf(false)
+    }
+  }
+
+  // Check if the prompt is likely requesting a full resume
+  const isResumeGenerationPrompt = (input) => {
+    const lowerInput = input.toLowerCase()
+    // Explicit keywords in English and Russian
+    const explicitKeywords = [
+      "generate resume",
+      "create resume",
+      "создать резюме",
+      "сгенерировать резюме",
+      "build resume",
+      "make resume",
+      "full resume",
+      "полное резюме",
+    ]
+    if (explicitKeywords.some((keyword) => lowerInput.includes(keyword))) {
+      return true
+    }
+
+    // Heuristic: Look for developer-related terms or experience descriptions
+    const developerTerms = [
+      "developer",
+      "программист",
+      "разработчик",
+      "full-stack",
+      "фулл-стек",
+      "frontend",
+      "backend",
+      "фронтенд",
+      "бэкенд",
+      "years of experience",
+      "лет опыта",
+      "skills",
+      "навыки",
+      "projects",
+      "проекты",
+      "technologies",
+      "технологии",
+      // Common tech stacks
+      "react",
+      "node.js",
+      "typescript",
+      "javascript",
+      "python",
+      "golang",
+      "docker",
+      "postgresql",
+      "mongodb",
+      "redis",
+      "tailwind",
+      "vue.js",
+      "angular",
+      "express",
+      "nestjs",
+      "hono",
+      "bun",
+      "mysql",
+      "blockchain",
+      "wordpress",
+      "strapi",
+      "openai",
+      "telegram",
+    ]
+    // Check for at least one developer-related term
+    const hasDeveloperContext = developerTerms.some((term) => lowerInput.includes(term))
+
+    return hasDeveloperContext
+  }
+
+  // Handle chat submission
+  const handleChatSubmit = async () => {
+    if (!chatInput.trim()) return
+
+    const userMessage = { role: "user", content: chatInput }
+    setChatMessages([...chatMessages, userMessage])
+    setChatInput("")
+    setIsChatLoading(true)
+
+    try {
+      // Check if the prompt is requesting a full resume
+      if (isResumeGenerationPrompt(chatInput)) {
+        const htmlContent = await generateResumeWithGemini(chatInput)
+        setChatMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: {
+              type: "resume",
+              content: "Resume generated successfully! Click below to download the PDF.",
+              html: htmlContent,
+            },
+          },
+        ])
+      } else {
+        // Existing AI response logic for other prompts
+        const aiResponse = await generateAIResponse(chatInput)
+        setChatMessages((prev) => [...prev, { role: "assistant", content: aiResponse }])
+      }
+    } catch (error) {
+      console.error("Error processing chat:", error)
+      setChatMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: { type: "error", content: error.message } },
+      ])
+    } finally {
+      setIsChatLoading(false)
+    }
+  }
+
+  // Mock AI response function for non-resume prompts
+  const generateAIResponse = async (prompt) => {
     return new Promise((resolve) => {
       setTimeout(() => {
         if (prompt.toLowerCase().includes("professional summary")) {
@@ -254,34 +566,11 @@ export function ResumeBuilderNew() {
         } else {
           resolve({
             type: "general",
-            content: "I'm not sure what you're asking for. Could you specify what part of the resume you'd like help with (e.g., summary, experience, skills)?",
+            content: "I'm not sure what you're asking for. Could you specify what part of the resume you'd like help with (e.g., summary, experience, skills)? Alternatively, describe your experience and skills to generate a full resume (e.g., 'I am a developer with 5 years of experience in React and Node.js').",
           })
         }
       }, 1000)
     })
-  }
-
-  // Handle chat submission
-  const handleChatSubmit = async () => {
-    if (!chatInput.trim()) return
-
-    const userMessage = { role: "user", content: chatInput }
-    setChatMessages([...chatMessages, userMessage])
-    setChatInput("")
-    setIsChatLoading(true)
-
-    try {
-      const aiResponse = await generateAIResponse(chatInput)
-      setChatMessages((prev) => [...prev, { role: "assistant", content: aiResponse }])
-    } catch (error) {
-      console.error("Error generating AI response:", error)
-      setChatMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: { type: "error", content: "Failed to generate response. Please try again." } },
-      ])
-    } finally {
-      setIsChatLoading(false)
-    }
   }
 
   // Apply AI-generated content to resume
@@ -305,6 +594,7 @@ export function ResumeBuilderNew() {
     }
   }
 
+  // Generate resume HTML from form data
   const generateResumeHTML = () => {
     const skillsByCategory = {}
     skills.forEach((skill) => {
@@ -348,9 +638,9 @@ export function ResumeBuilderNew() {
               size: letter;
             }
             body {
-              font-family: 'Times New Roman', Times, serif;
-              line-height: 1.4;
-              color: #000;
+              font-family: Arial, Helvetica, sans-serif;
+              line-height: 1.5;
+              color: #333;
               margin: 0;
               padding: 0;
             }
@@ -376,11 +666,11 @@ export function ResumeBuilderNew() {
               margin-bottom: 0.3in;
             }
             .section-title {
-              font-size: 16pt;
+              font-size: 14pt;
               font-weight: bold;
-              border-bottom: 1px solid #000;
-              margin-bottom: 0.1in;
+              border-bottom: 1px solid #ccc;
               padding-bottom: 0.05in;
+              margin-bottom: 0.1in;
             }
             .entry {
               margin-bottom: 0.2in;
@@ -655,6 +945,7 @@ export function ResumeBuilderNew() {
     `
   }
 
+  // Generate PDF from form data
   const generateResume = async () => {
     try {
       setIsGeneratingPdf(true)
@@ -735,7 +1026,6 @@ export function ResumeBuilderNew() {
     else if (activeTab === "projects") setActiveTab("education")
     else if (activeTab === "skills") setActiveTab("projects")
     else if (activeTab === "preview") setActiveTab("skills")
-    else if (activeTab === "apikey") setActiveTab("preview")
     else if (activeTab === "ai") setActiveTab("preview")
   }
 
@@ -745,7 +1035,7 @@ export function ResumeBuilderNew() {
         <CardContent className="p-0">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <div className="mb-8">
-              <TabsList className="w-full grid grid-cols-8 mb-2">
+              <TabsList className="w-full grid grid-cols-7 mb-2">
                 <TabsTrigger value="personal" className="data-[state=active]:bg-primary data-[state=active]:text-white">
                   Personal Info
                 </TabsTrigger>
@@ -773,7 +1063,6 @@ export function ResumeBuilderNew() {
                 <TabsTrigger value="ai" className="data-[state=active]:bg-primary data-[state=active]:text-white">
                   AI Assistant
                 </TabsTrigger>
-             
               </TabsList>
 
               <div className="w-full bg-gray-200 h-2 rounded-full mt-2">
@@ -782,20 +1071,18 @@ export function ResumeBuilderNew() {
                   style={{
                     width:
                       activeTab === "personal"
-                        ? "12.5%"
+                        ? "14.29%"
                         : activeTab === "experience"
-                          ? "25%"
+                          ? "28.57%"
                           : activeTab === "education"
-                            ? "37.5%"
+                            ? "42.86%"
                             : activeTab === "projects"
-                              ? "50%"
+                              ? "57.14%"
                               : activeTab === "skills"
-                                ? "62.5%"
+                                ? "71.43%"
                                 : activeTab === "preview"
-                                  ? "75%"
-                                  : activeTab === "ai"
-                                    ? "87.5%"
-                                    : "100%",
+                                  ? "85.71%"
+                                  : "100%",
                   }}
                 ></div>
               </div>
@@ -985,9 +1272,7 @@ export function ResumeBuilderNew() {
                             onChange={(e) => handleExperienceChange(exp.id, "description", e.target.value)}
                             className="mt-1"
                             rows={4}
-                            placeholder="Developed a RESTful API endpoint using Express.js to manage user authentication
-Improved system reliability by writing automated unit tests with Jest
-Boosted performance by resolving critical bottlenecks"
+                            placeholder="Developed a RESTful API endpoint using Express.js to manage user authentication\nImproved system reliability by writing automated unit tests with Jest\nBoosted performance by resolving critical bottlenecks"
                           />
                         </div>
                       </div>
@@ -1202,8 +1487,7 @@ Boosted performance by resolving critical bottlenecks"
                             onChange={(e) => handleProjectChange(proj.id, "description", e.target.value)}
                             className="mt-1"
                             rows={4}
-                            placeholder="Built a responsive order management dashboard using React and Next.js
-Implemented a dynamic cart system on the front-end with React hooks and Zustand"
+                            placeholder="Built a responsive order management dashboard using React and Next.js\nImplemented a dynamic cart system on the front-end with React hooks and Zustand"
                           />
                         </div>
                       </div>
@@ -1284,7 +1568,7 @@ Implemented a dynamic cart system on the front-end with React hooks and Zustand"
                       <div className="flex justify-between items-start">
                         <div>
                           <h2 className="text-3xl font-bold">{personalInfo.name || "Your Name"}</h2>
-                          <div className="flex flex-wrap gap-2 mt-2 text-sm text-gray-600">
+                          <div className="flex flex-wrap gap-2 mt-2 text-smگیtext-gray-600">
                             {personalInfo.location && <span>{personalInfo.location}</span>}
                             {personalInfo.phone && <span>• {personalInfo.phone}</span>}
                             {personalInfo.website && <span>• {personalInfo.website}</span>}
@@ -1473,8 +1757,7 @@ Implemented a dynamic cart system on the front-end with React hooks and Zustand"
                 <CardHeader>
                   <CardTitle>AI Resume Assistant</CardTitle>
                   <CardDescription>
-                    Ask the AI to generate content for your resume. For example, try "Generate a professional summary for a
-                    software engineer with 5 years of experience" or "Suggest skills for a full-stack developer".
+                    Describe your experience and skills (e.g., "I am a full-stack developer with 6 years of experience in React and Node.js") to generate a full ATS-friendly resume, or ask for specific resume sections (e.g., "Generate a professional summary for a software engineer").
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -1502,10 +1785,32 @@ Implemented a dynamic cart system on the front-end with React hooks and Zustand"
                               msg.content
                             ) : msg.content.type === "error" ? (
                               msg.content.content
+                            ) : msg.content.type === "resume" ? (
+                              <div>
+                                <p>{msg.content.content}</p>
+                                <Button
+                                  size="sm"
+                                  className="mt-2 bg-green-600 hover:bg-green-700"
+                                  onClick={() => generatePdfFromGemini(msg.content.html)}
+                                  disabled={isGeneratingPdf}
+                                >
+                                  {isGeneratingPdf ? (
+                                    <>
+                                      <span className="animate-spin mr-2">⏳</span>
+                                      Generating PDF...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Download className="mr-2 h-4 w-4" />
+                                      Download Resume PDF
+                                    </>
+                                  )}
+                                </Button>
+                              </div>
                             ) : (
                               <div>
                                 <p>{typeof msg.content.content === "string" ? msg.content.content : JSON.stringify(msg.content.content)}</p>
-                                {msg.content.type !== "general" && msg.content.type !== "error" && (
+                                {msg.content.type !== "general" && (
                                   <Button
                                     size="sm"
                                     className="mt-2 bg-green-600 hover:bg-green-700"
@@ -1526,7 +1831,7 @@ Implemented a dynamic cart system on the front-end with React hooks and Zustand"
                     <Input
                       value={chatInput}
                       onChange={(e) => setChatInput(e.target.value)}
-                      placeholder="Enter your prompt (e.g., 'Generate a professional summary...')"
+                      placeholder="Describe your experience and skills to generate a resume..."
                       onKeyPress={(e) => e.key === "Enter" && handleChatSubmit()}
                       disabled={isChatLoading}
                     />
@@ -1550,7 +1855,6 @@ Implemented a dynamic cart system on the front-end with React hooks and Zustand"
                 </CardFooter>
               </Card>
             </TabsContent>
-
           </Tabs>
         </CardContent>
       </Card>
