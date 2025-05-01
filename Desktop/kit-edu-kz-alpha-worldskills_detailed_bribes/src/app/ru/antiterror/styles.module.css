@@ -1,0 +1,73 @@
+.section__antiterr h2 {
+    font-weight: 700;
+    font-size: 40px;
+    width: 100%;
+    text-align: center;
+    margin: 20px 0;
+}
+
+.deyatelnosti {
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+    margin-bottom: 50px;
+}
+
+.deyatelnost {
+    font-weight: 500;
+    font-size: 30px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+.cover {
+    width: 750px;
+    height: 475px;
+    overflow: hidden;
+}
+
+.cover img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+@media screen and (max-width: 1024px) {
+    .section__antiterr h2 {
+        font-size: 28px;
+    }
+    .cover {
+        width: 100%;
+        height: 350px;
+    }
+    .deyatelnost {
+        font-size: 20px;
+    }
+}
+
+@media screen and (max-width: 480px) {
+    .section__antiterr h2 {
+        font-size: 20px;
+    }
+    .deyatelnost {
+        font-size: 14px;
+    }
+    .cover {
+        height: 250px;
+    }
+}
+
+@media screen and (max-width: 280px) {
+    .section__antiterr h2 {
+        font-size: 16px;
+    }
+    .deyatelnost {
+        font-size: 12px;
+    }
+    .cover {
+        height: 200px;
+    }
+}

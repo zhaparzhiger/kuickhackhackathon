@@ -1,0 +1,101 @@
+
+
+.wrapper {
+    min-height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    background-color: #fff;
+}
+
+._container {
+    max-width: 1280px;
+    margin: 0 auto;
+}
+
+
+/* PICTURE SECTION */
+
+.picture__section {
+    margin-top: 59px;
+    margin-bottom: 57px;
+}
+
+.picture__section__container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 24px;
+}
+
+.picture__section__header {
+    color: #000;
+    font-family: Montserrat;
+}
+
+.picture__section__img {
+    max-width: 785px;
+    max-height: 1110px;
+    border-radius: 20px;
+    object-fit: cover;
+}
+
+
+/* ===================== */
+
+
+/* DOCUMENTS SECTION */
+
+.documents__section__block {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.documents__section__header {
+    color: #000;
+    font-family: Montserrat;
+    font-size: 35px;
+    font-style: normal;
+    font-weight: 700;
+    line-height: normal;
+    margin-bottom: 24px;
+}
+
+.documents__section__card {
+    display: flex;
+    color: #000;
+    border: 1px solid #E3E3E3;
+    border-radius: 20px;
+    justify-content: space-between;
+    align-items: center;
+    padding: 24px;
+}
+
+.documents__section__text {
+    color: #000;
+    font-family: Montserrat;
+    font-size: 25px;
+    font-style: normal;
+    font-weight: 700;
+    line-height: normal;
+}
+
+.documents__section__download__button {
+    display: flex;
+    align-items: center;
+    color: #EAA360;
+    font-family: Montserrat;
+    font-size: 24px;
+    font-style: normal;
+    font-weight: 600;
+    line-height: normal;
+    cursor: pointer;
+}
+
+.documents__section__download__button:hover .documents__section__img {
+    transition: transform 0.2s ease-out;
+    transform: rotate(45deg);
+}
+
+/* ===================== */

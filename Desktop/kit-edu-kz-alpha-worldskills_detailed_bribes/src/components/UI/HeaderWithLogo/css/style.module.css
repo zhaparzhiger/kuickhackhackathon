@@ -1,0 +1,124 @@
+
+._container {
+    max-width: 1280px;
+    margin: 0 auto;
+}
+
+/* HEADER BLOCK */
+
+.header {
+
+}
+
+.header::after {
+    content: "";
+    display: block;
+    margin: 0 auto;
+    width: 1230px;
+    height: 1px;
+    margin-top: -20px;
+    background-color: #e6e6e6;
+}
+
+.header__container {
+    display: flex; 
+    align-items: center;
+    justify-content: space-between;
+    padding: 40px;
+}
+
+
+.header__list {
+    display: flex;
+    gap: 30px;
+}
+
+.list__item {
+    color: #000;
+    font-family: Montserrat;
+    font-size: 16px;
+    font-style: normal;
+    font-weight: 500;
+    line-height: normal;
+    cursor: pointer;
+}
+
+.header__select_menu {
+    color: #7a87a7;
+    font-family: Montserrat;
+    font-size: 20px;
+    font-style: normal;
+    font-weight: 600;
+    line-height: normal;
+    cursor: pointer;
+    position: relative;
+}
+
+.header__select_btn {
+    display: flex;
+    align-items: center;
+    user-select: none;
+}   
+
+.header__select_menu.active .header__select_btn img {
+    transition: transform 0.2s;
+    transform: rotate(180deg);
+}
+
+.header__select_menu .header__options {
+    display: none;
+}
+
+.header__select_menu.active .header__options {
+    display: flex;
+    flex-direction: column;
+    text-align: center;
+    gap: 5px;
+    background: #fff;
+    border-radius: 12px;
+    padding: 20px 10px 20px 10px;
+    margin-top: 10px;
+    position: absolute;
+    width: 140px;
+    right: 0;
+}
+
+.header__option {
+    background: #fff;
+    color: #000;
+    user-select: none;
+    width: 100%;
+    margin-top: 10px;
+}
+
+.header__option:first-child {
+    margin-top: 0px;
+}
+
+.header__option:not(:last-child)::after {
+    content: "";
+    display: block; 
+    width: 100%;
+    height: 1px;
+    background-color: #F2F2F2;
+    margin: 10px 0px 0px 0px;
+}
+
+.header__option:last-child:after {
+    content: "";
+    display: block; 
+    width: 100%;
+    height: 1px;
+    background-color: transparent;
+    margin: 10px 0px 0px 0px;
+}
+
+.header__option:hover {
+    background-color: #F2F2F2;
+}
+
+.header__option_hidden {
+    display: none;
+}
+
+/* ================================ */

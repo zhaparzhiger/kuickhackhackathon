@@ -1,0 +1,88 @@
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap');
+
+*, *::before, *::after {
+    box-sizing: border-box;
+    padding: 0;
+    margin: 0;
+  }
+  
+  
+  ul, ol {
+    list-style: none;
+  }
+  
+  button {
+    outline: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+    background: none;
+  }
+  
+  select {
+    outline: none;
+    border: none;
+    background: none;
+  }
+  
+  a {
+    color: #fff;
+    text-decoration: none;
+  }
+  
+  html,
+  body {
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+  
+  body {
+    color: rgb(var(--foreground-rgb));
+    background: linear-gradient(
+        to bottom,
+        transparent,
+        rgb(var(--background-end-rgb))
+      )
+      rgb(var(--background-start-rgb));
+  }
+
+.wrapper{
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    overflow-x: hidden;
+}
+
+header, footer{
+    flex-shrink: 0;
+}
+
+main{
+    flex-grow: 1;
+}
+
+.wrapper {
+    min-height: 100%;
+    overflow: hidden;
+}
+._container {
+    max-width: 1292px;
+    margin: 0 auto;
+    padding: 0 20px;
+}
+
+@media screen and (max-width: 1440px) {
+    .container{
+        width: 1024px;
+    }
+}
+@media screen and (max-width: 1024px) {
+    .container{
+        width: 768px;
+    }
+}
+@media screen and (max-width: 768px) {
+    .container{
+        width: 90vw;
+    }
+}
